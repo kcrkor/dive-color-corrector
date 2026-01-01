@@ -177,20 +177,122 @@ dive-color-corrector-rs/
    }
    ```
 
-### Phase 4: Video Processing
+### Phase 4: Video Processing with ez-ffmpeg
 
 **Deliverables:**
 - Video analysis with progress events
+- Custom FrameFilter for color correction
 - Video processing with frame streaming
 - Tauri event emission for progress updates
 
 **Key Crates:**
-- `opencv` (via `opencv-rust`) or `ffmpeg-next` - Video I/O
+- `ez-ffmpeg` - Safe FFmpeg bindings with custom filter support
 - `crossbeam-channel` - Progress communication
+
+**Requirements:**
+- Rust 1.80.0+
+- FFmpeg 7.0+
+
+**Why ez-ffmpeg:**
+- Safe Rust API without unsafe code
+- Custom `FrameFilter` trait for pixel-level processing
+- Direct frame data access via `get_data_mut()`
+- Optional GPU acceleration with OpenGL feature
+- Broad codec support via FFmpeg
 
 **Tasks:**
 
-1. Implement video analysis with Tauri events:
+1. Add ez-ffmpeg dependency:
+   ```toml
+   [dependencies]
+   ez-ffmpeg = { version = "0.4", features = ["static"] }
+   ```
+
+2. Implement custom `ColorCorrectionFilter`:
+   ```rust
+   use ez_ffmpeg::core::filter::frame_filter::{FrameFilter, FrameFilterContext};
+   use ez_ffmpeg::core::frame::Frame;
+   use ffmpeg_sys_next::{AVMediaType, AVPixelFormat};
+
+   use crate::core::color::filter::{apply_filter, FilterMatrix};
+
+   pub struct ColorCorrectionFilter {
+       filter_matrices: Vec<FilterMatrix>,
+       current_frame: usize,
+   }
+
+   impl ColorCorrectionFilter {
+       pub fn new(filter_matrices: Vec<FilterMatrix>) -> Self {
+           Self {
+               filter_matrices,
+               current_frame: 0,
+           }
+       }
+   }
+
+   impl FrameFilter for ColorCorrectionFilter {
+       fn media_type(&self) -> AVMediaType {
+           AVMediaType::AVMEDIA_TYPE_VIDEO
+       }
+
+       fn filter_frame(
+           &mut self,
+           mut frame: Frame,
+           _ctx: &FrameFilterContext,
+       ) -> Result<Option<Frame>, String> {
+           // Get the interpolated filter for current frame
+           let filter = &self.filter_matrices[self.current_frame];
+           self.current_frame += 1;
+
+           // Access frame planes (YUV or RGB depending on pixel format)
+           match frame.format() {
+               AVPixelFormat::AV_PIX_FMT_RGB24 => {
+                   let data = frame.get_data_mut(0)
+                       .ok_or("Failed to get RGB plane")?;
+
+                   // Apply color correction filter to RGB data
+                   apply_filter_rgb_inplace(data, frame.width(), frame.height(), filter);
+               }
+               AVPixelFormat::AV_PIX_FMT_YUV420P => {
+                   // For YUV, we need to convert or apply in YUV space
+                   let y_data = frame.get_data_mut(0).ok_or("Failed to get Y plane")?;
+                   let u_data = frame.get_data_mut(1).ok_or("Failed to get U plane")?;
+                   let v_data = frame.get_data_mut(2).ok_or("Failed to get V plane")?;
+
+                   apply_filter_yuv_inplace(y_data, u_data, v_data, filter);
+               }
+               _ => return Err("Unsupported pixel format".to_string()),
+           }
+
+           Ok(Some(frame))
+       }
+   }
+   ```
+
+3. Implement video processing pipeline:
+   ```rust
+   use ez_ffmpeg::FfmpegContext;
+
+   pub fn process_video(
+       input_path: &str,
+       output_path: &str,
+       filter_matrices: Vec<FilterMatrix>,
+   ) -> Result<(), Box<dyn std::error::Error>> {
+       let color_filter = ColorCorrectionFilter::new(filter_matrices);
+
+       FfmpegContext::builder()
+           .input(input_path)
+           .filter_desc("format=rgb24")  // Convert to RGB for our filter
+           .frame_filter(color_filter)   // Apply custom color correction
+           .output(output_path)
+           .build()?
+           .run()?;
+
+       Ok(())
+   }
+   ```
+
+4. Implement two-pass processing with Tauri events:
    ```rust
    #[tauri::command]
    async fn analyze_video(
@@ -198,28 +300,86 @@ dive-color-corrector-rs/
        input: String,
        output: String,
    ) -> Result<VideoData, String> {
-       // Open video
-       // Sample frames, emit progress
-       window.emit("analysis-progress", frame_count)?;
-       // Return video data
-   }
-   ```
+       use ez_ffmpeg::FfmpegContext;
 
-2. Implement video processing with streaming:
-   ```rust
+       // First pass: sample frames for filter matrix computation
+       let mut filter_indices = Vec::new();
+       let mut filter_matrices = Vec::new();
+       let mut frame_count = 0;
+
+       let ctx = FfmpegContext::builder()
+           .input(&input)
+           .frame_filter(AnalysisFilter::new(|frame_idx, frame| {
+               frame_count = frame_idx;
+               window.emit("analysis-progress", frame_idx).ok();
+
+               // Sample every N frames
+               if frame_idx % (fps * SAMPLE_SECONDS) == 0 {
+                   let matrix = compute_filter_matrix(&frame);
+                   filter_indices.push(frame_idx);
+                   filter_matrices.push(matrix);
+               }
+           }))
+           .build()
+           .map_err(|e| e.to_string())?;
+
+       ctx.run().map_err(|e| e.to_string())?;
+
+       Ok(VideoData {
+           input_path: input,
+           output_path: output,
+           frame_count,
+           filter_indices,
+           filter_matrices,
+       })
+   }
+
    #[tauri::command]
    async fn process_video(
        window: tauri::Window,
        video_data: VideoData,
-       yield_preview: bool,
    ) -> Result<(), String> {
-       // Precompute filter matrices
-       // Process frames with progress events
-       window.emit("process-progress", ProcessProgress {
-           percent,
-           preview: preview_base64,
-       })?;
+       // Precompute interpolated matrices
+       let interpolated = precompute_filter_matrices(
+           video_data.frame_count,
+           &video_data.filter_indices,
+           &video_data.filter_matrices,
+       );
+
+       // Create filter with progress callback
+       let filter = ColorCorrectionFilter::new(interpolated)
+           .with_progress(|percent| {
+               window.emit("process-progress", percent).ok();
+           });
+
+       FfmpegContext::builder()
+           .input(&video_data.input_path)
+           .filter_desc("format=rgb24")
+           .frame_filter(filter)
+           .output(&video_data.output_path)
+           .build()
+           .map_err(|e| e.to_string())?
+           .run()
+           .map_err(|e| e.to_string())?;
+
+       Ok(())
    }
+   ```
+
+5. Optional: GPU-accelerated processing with OpenGL:
+   ```toml
+   [dependencies]
+   ez-ffmpeg = { version = "0.4", features = ["static", "opengl"] }
+   ```
+
+   ```rust
+   // Use GLSL shader for color correction (GPU-accelerated)
+   FfmpegContext::builder()
+       .input(input_path)
+       .gl_filter(ColorCorrectionShader::new(filter_matrix))
+       .output(output_path)
+       .build()?
+       .run()?;
    ```
 
 ### Phase 5: Deep Learning Integration
@@ -378,19 +538,72 @@ dive-color-corrector-rs/
 | Python | Rust Equivalent | Notes |
 |--------|-----------------|-------|
 | `numpy` | `ndarray` | N-dimensional arrays |
-| `opencv-python` | `opencv-rust` or `image` | Image I/O, resize |
+| `opencv-python` (images) | `image` | Image I/O, resize, format conversion |
+| `opencv-python` (video) | `ez-ffmpeg` | Video I/O with custom FrameFilter support |
 | `pillow` | `image` + `kamadak-exif` | EXIF preservation |
 | `tensorflow` | `ort` (ONNX Runtime) | Model inference |
 | `PySimpleGUI` | Tauri + Vue/React | Desktop UI |
+
+## ez-ffmpeg Integration Details
+
+### Crate Features
+
+| Feature | Purpose |
+|---------|---------|
+| `static` | Static linking of FFmpeg libraries (recommended for distribution) |
+| `opengl` | GPU-accelerated OpenGL filters with GLSL shaders |
+| `rtmp` | Embedded RTMP server for streaming |
+| `async` | Async/await support for non-blocking operations |
+
+### Frame Format Considerations
+
+Most videos use YUV420P format. Options for color correction:
+
+1. **Convert to RGB**: Use `filter_desc("format=rgb24")` before custom filter
+   - Pro: Matches our existing RGB-based algorithm
+   - Con: Extra conversion overhead
+
+2. **Native YUV processing**: Implement color correction in YUV space
+   - Pro: No conversion overhead
+   - Con: Algorithm needs adaptation
+
+3. **GPU shader**: Use OpenGL feature with GLSL fragment shader
+   - Pro: Massive performance boost for 4K+ video
+   - Con: Requires OpenGL context, more complex setup
+
+### Example GLSL Color Correction Shader
+
+```glsl
+#version 330 core
+
+uniform sampler2D inputTexture;
+uniform mat4 colorMatrix;  // Our 20-element filter as 4x4 + offsets
+
+in vec2 texCoord;
+out vec4 fragColor;
+
+void main() {
+    vec4 color = texture(inputTexture, texCoord);
+
+    // Apply color transformation matrix
+    vec3 corrected;
+    corrected.r = dot(color.rgb, colorMatrix[0].rgb) + colorMatrix[0].a;
+    corrected.g = color.g * colorMatrix[1].g + colorMatrix[1].a;
+    corrected.b = color.b * colorMatrix[2].b + colorMatrix[2].a;
+
+    fragColor = vec4(clamp(corrected, 0.0, 1.0), color.a);
+}
+```
 
 ## Risk Mitigation
 
 | Risk | Mitigation |
 |------|------------|
-| OpenCV Rust bindings complexity | Consider pure-Rust `image` crate for basic operations |
+| FFmpeg 7.0+ requirement | Bundle FFmpeg with static linking or document install steps |
+| ez-ffmpeg API stability | Pin version, monitor releases, contribute upstream if needed |
 | ONNX model conversion issues | Validate model outputs match Python implementation |
-| Video codec support | Use FFmpeg via `ffmpeg-next` for broad format support |
-| Cross-platform builds | Extensive CI testing on all target platforms |
+| Cross-platform FFmpeg builds | Use `static` feature, test in CI on all platforms |
+| GPU shader compatibility | Fallback to CPU path if OpenGL unavailable |
 
 ## Success Criteria
 
