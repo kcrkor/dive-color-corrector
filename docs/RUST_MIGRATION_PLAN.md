@@ -547,43 +547,170 @@ dive-color-corrector-rs/
 
 ### Phase 5: Deep Learning Integration
 
+**Model Analysis (Deep SESR):**
+
+| Property | Value |
+|----------|-------|
+| Format | Keras 3.9.0 (.keras) |
+| Size | 9.9 MB (weights: 10.2 MB) |
+| Input | (batch, 240, 320, 3) float32, normalized [0, 1] |
+| Output | (batch, 240, 320, 3) float32, range [-1, 1] |
+| Layers | 150 total |
+
+**Layer Composition:**
+- Conv2D: 48 layers
+- Concatenate: 35 (dense connections)
+- Activation: 28 (relu, sigmoid, tanh, linear)
+- BatchNormalization: 27
+- Add: 10 (residual connections)
+- UpSampling2D: 1
+
+**ONNX Compatibility: ✅ All layers fully supported**
+
 **Deliverables:**
 - ONNX Runtime integration for Deep SESR model
-- Model conversion from Keras to ONNX
-- Inference pipeline
+- Model conversion from Keras 3.x to ONNX
+- Inference pipeline with pre/post processing
 
 **Key Crates:**
 - `ort` (ONNX Runtime) - Model inference
 - `ndarray` - Tensor operations
+- `image` - Image resizing for pre/post processing
 
 **Tasks:**
 
 1. Convert Keras model to ONNX:
    ```python
+   import tensorflow as tf
    import tf2onnx
+
+   # Load Keras 3.x model
    model = tf.keras.models.load_model("deep_sesr_2x_1d.keras")
-   tf2onnx.convert.from_keras(model, output_path="deep_sesr.onnx")
+
+   # Convert to ONNX with opset 17 for best compatibility
+   spec = (tf.TensorSpec((1, 240, 320, 3), tf.float32, name="input"),)
+   output_path = "deep_sesr.onnx"
+
+   model_proto, _ = tf2onnx.convert.from_keras(
+       model,
+       input_signature=spec,
+       opset=17,
+       output_path=output_path
+   )
+
+   print(f"Model saved to {output_path}")
+   print(f"Inputs: {[i.name for i in model_proto.graph.input]}")
+   print(f"Outputs: {[o.name for o in model_proto.graph.output]}")
    ```
 
-2. Implement ONNX inference in Rust:
+2. Validate ONNX model outputs match TensorFlow:
+   ```python
+   import onnxruntime as ort
+   import numpy as np
+
+   # Load both models
+   keras_model = tf.keras.models.load_model("deep_sesr_2x_1d.keras")
+   onnx_session = ort.InferenceSession("deep_sesr.onnx")
+
+   # Test with random input
+   test_input = np.random.rand(1, 240, 320, 3).astype(np.float32)
+
+   keras_output = keras_model.predict(test_input)
+   onnx_output = onnx_session.run(None, {"input": test_input})[0]
+
+   # Check outputs match within tolerance
+   assert np.allclose(keras_output, onnx_output, rtol=1e-5, atol=1e-5)
+   ```
+
+3. Implement ONNX inference in Rust:
    ```rust
-   use ort::{Session, SessionBuilder};
+   use ndarray::{Array3, Array4, s};
+   use ort::{Session, Value, inputs};
+   use image::imageops::FilterType;
 
    pub struct DeepSESR {
        session: Session,
+       input_height: u32,
+       input_width: u32,
    }
 
    impl DeepSESR {
-       pub fn new() -> Result<Self, Error> {
-           let session = SessionBuilder::new()?
-               .with_model_from_file("deep_sesr.onnx")?;
-           Ok(Self { session })
+       pub fn new(model_path: &str) -> Result<Self, ort::Error> {
+           ort::init().commit()?;
+
+           let session = Session::builder()?
+               .with_optimization_level(ort::GraphOptimizationLevel::Level3)?
+               .with_intra_threads(4)?
+               .commit_from_file(model_path)?;
+
+           Ok(Self {
+               session,
+               input_height: 240,
+               input_width: 320,
+           })
        }
 
-       pub fn enhance(&self, img: &Array3<u8>) -> Result<Array3<u8>, Error> {
-           // Preprocess, run inference, postprocess
+       pub fn enhance(&self, img: &Array3<u8>) -> Result<Array3<u8>, ort::Error> {
+           let (orig_h, orig_w, _) = img.dim();
+
+           // Preprocess: resize and normalize to [0, 1]
+           let resized = resize_image(img, self.input_width, self.input_height);
+           let normalized = resized.mapv(|x| x as f32 / 255.0);
+
+           // Add batch dimension: (H, W, 3) -> (1, H, W, 3)
+           let input = normalized.insert_axis(ndarray::Axis(0));
+
+           // Run inference
+           let outputs = self.session.run(
+               inputs!["input" => input.view()]?
+           )?;
+
+           // Get output tensor
+           let output: ndarray::ArrayView4<f32> = outputs[0]
+               .try_extract_tensor()?
+               .view()
+               .into_dimensionality()?;
+
+           // Postprocess: remove batch, scale [-1,1] -> [0,255]
+           let enhanced = output
+               .index_axis(ndarray::Axis(0), 0)
+               .mapv(|x| ((x + 1.0) / 2.0 * 255.0).clamp(0.0, 255.0) as u8);
+
+           // Resize back to original dimensions
+           let result = resize_image(&enhanced, orig_w as u32, orig_h as u32);
+
+           Ok(result)
        }
    }
+
+   fn resize_image(img: &Array3<u8>, width: u32, height: u32) -> Array3<u8> {
+       // Use image crate for high-quality resizing
+       // ... implementation
+   }
+   ```
+
+4. Bundle ONNX model with Tauri app:
+   ```json
+   // tauri.conf.json
+   {
+     "tauri": {
+       "bundle": {
+         "resources": ["models/deep_sesr.onnx"]
+       }
+     }
+   }
+   ```
+
+5. Optional: Quantize model for smaller size and faster inference:
+   ```python
+   from onnxruntime.quantization import quantize_dynamic, QuantType
+
+   quantize_dynamic(
+       "deep_sesr.onnx",
+       "deep_sesr_int8.onnx",
+       weight_type=QuantType.QUInt8
+   )
+   # Reduces ~10MB -> ~3MB with minimal quality loss
    ```
 
 ### Phase 6: Frontend Development
