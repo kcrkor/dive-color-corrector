@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 
 from dive_color_corrector.core.processing.image import correct_image
-from dive_color_corrector.core.processing.video import process_video
+from dive_color_corrector.core.processing.video import analyze_video, process_video
 
 
 def parse_args():
@@ -50,8 +50,21 @@ def main():
             correct_image(str(input_path), str(output_path), use_deep=args.use_deep)
             print(f"Successfully processed image: {output_path}")
         else:  # video mode
-            process_video(str(input_path), str(output_path), use_deep=args.use_deep)
-            print(f"Successfully processed video: {output_path}")
+            # Two-step video processing: analyze then process
+            video_data = None
+            for item in analyze_video(str(input_path), str(output_path)):
+                if isinstance(item, dict):
+                    video_data = item
+
+            if video_data is None:
+                print("Error: Failed to analyze video", file=sys.stderr)
+                sys.exit(1)
+
+            # Process video with precomputed filter matrices
+            for _ in process_video(video_data, yield_preview=False, use_deep=args.use_deep):
+                pass
+
+            print(f"\nSuccessfully processed video: {output_path}")
     except Exception as e:
         print(f"Error processing file: {e}", file=sys.stderr)
         sys.exit(1) 

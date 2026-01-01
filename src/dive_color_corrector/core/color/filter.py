@@ -41,23 +41,23 @@ def apply_filter(mat, filt):
 
     Args:
         mat: Input RGB matrix
-        filt: Filter matrix
+        filt: Filter matrix (1-D array with at least 15 elements)
 
     Returns:
-        Filtered RGB matrix
+        Filtered RGB matrix as uint8
     """
-    r = mat[..., 0]
-    g = mat[..., 1]
-    b = mat[..., 2]
+    # Operate in-place on a float32 array to reduce temporaries
+    filtered_mat = np.zeros_like(mat, dtype=np.float32)
+    filtered_mat[..., 0] = (
+        mat[..., 0] * filt[0]
+        + mat[..., 1] * filt[1]
+        + mat[..., 2] * filt[2]
+        + filt[4] * 255
+    )
+    filtered_mat[..., 1] = mat[..., 1] * filt[6] + filt[9] * 255
+    filtered_mat[..., 2] = mat[..., 2] * filt[12] + filt[14] * 255
 
-    r = r * filt[0] + g * filt[1] + b * filt[2] + filt[4] * 255
-    g = g * filt[6] + filt[9] * 255
-    b = b * filt[12] + filt[14] * 255
-
-    filtered_mat = np.dstack([r, g, b])
-    filtered_mat = np.clip(filtered_mat, 0, 255).astype(np.uint8)
-
-    return filtered_mat
+    return np.clip(filtered_mat, 0, 255).astype(np.uint8)
 
 
 def get_filter_matrix(mat):
@@ -134,3 +134,42 @@ def get_filter_matrix(mat):
         0, 0, blue_gain, 0, blue_offset,
         0, 0, 0, 1, 0,
     ])
+
+
+def precompute_filter_matrices(frame_count, filter_indices, filter_matrices):
+    """Precompute interpolated filter matrices for all frames.
+
+    Args:
+        frame_count: Total number of frames in the video
+        filter_indices: Array of frame indices where filters were sampled
+        filter_matrices: Array of filter matrices at sampled indices,
+                        shape (n_samples, filter_size)
+
+    Returns:
+        Interpolated filter matrices for all frames as float32,
+        shape (frame_count, filter_size)
+    """
+    # Ensure inputs are numpy arrays with correct dtype
+    filter_indices = np.asarray(filter_indices, dtype=np.float32)
+    filter_matrices = np.asarray(filter_matrices, dtype=np.float32)
+
+    # Sort by filter indices if not already sorted
+    order = np.argsort(filter_indices)
+    filter_indices = filter_indices[order]
+    filter_matrices = filter_matrices[order]
+
+    filter_matrix_size = filter_matrices.shape[1]
+    frame_numbers = np.arange(frame_count, dtype=np.float32)
+
+    # Allocate as float32 to reduce memory usage
+    interpolated_matrices = np.zeros(
+        (frame_count, filter_matrix_size), dtype=np.float32
+    )
+
+    # Interpolate each coefficient across all frames
+    for i in range(filter_matrix_size):
+        interpolated_matrices[:, i] = np.interp(
+            frame_numbers, filter_indices, filter_matrices[:, i]
+        )
+
+    return interpolated_matrices

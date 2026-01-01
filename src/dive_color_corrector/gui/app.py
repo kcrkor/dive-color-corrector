@@ -5,7 +5,8 @@ from pathlib import Path
 
 import PySimpleGUI as sg
 
-from dive_color_corrector.core.correction import analyze_video, correct_image, process_video
+from dive_color_corrector.core.processing.image import correct_image
+from dive_color_corrector.core.processing.video import analyze_video, process_video
 from dive_color_corrector.core.utils.constants import (
     IMAGE_FORMATS,
     VIDEO_FORMATS,
@@ -88,17 +89,26 @@ def process_files(window, files, output_folder):
                 preview_data = correct_image(file, str(output_file), use_deep=use_deep)
                 window["-PREVIEW-"].update(data=preview_data)
             else:  # Video file
+                video_data = None
+                frame_count_estimate = 1
                 for data in analyze_video(file, str(output_file)):
                     if isinstance(data, dict):
                         video_data = data
+                        frame_count_estimate = video_data["frame_count"]
                     else:
-                        window["-PROGRESS-"].update((data * 100) // video_data["frame_count"])
+                        # data is current frame count during analysis
+                        window["-STATUS-"].update(f"Analyzing {filename}: {data} frames")
                         window.refresh()
 
-                for progress, preview in process_video(video_data, yield_preview=True, use_deep=use_deep):
+                if video_data is None:
+                    window["-STATUS-"].update(f"Error: Failed to analyze {filename}")
+                    continue
+
+                for percent, preview in process_video(video_data, yield_preview=True, use_deep=use_deep):
                     if preview:
                         window["-PREVIEW-"].update(data=preview)
-                    window["-PROGRESS-"].update(progress)
+                    if percent is not None:
+                        window["-PROGRESS-"].update(int(percent))
                     window.refresh()
         except Exception as e:
             window["-STATUS-"].update(f"Error processing {filename}: {str(e)}")
