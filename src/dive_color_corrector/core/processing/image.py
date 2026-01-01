@@ -64,7 +64,7 @@ def correct_image(input_path, output_path, use_deep=False):
 
     preview = mat.copy()
     width = preview.shape[1] // 2
-    preview[::, width:] = corrected_mat[::, width:]
+    preview[:, width:] = corrected_mat[:, width:]
 
     preview = cv2.resize(preview, (PREVIEW_WIDTH, PREVIEW_HEIGHT))
 
