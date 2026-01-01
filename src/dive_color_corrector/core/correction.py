@@ -1,12 +1,15 @@
-"""Core functionality for color correction of underwater images."""
+"""Core functionality for color correction of underwater images.
+
+This module contains the core hue-shift color correction algorithm.
+For high-level image/video processing, import directly from:
+- dive_color_corrector.core.processing.image
+- dive_color_corrector.core.processing.video
+"""
 
 import math
 
 import cv2
 import numpy as np
-
-from dive_color_corrector.core.processing.image import correct_image
-from dive_color_corrector.core.processing.video import analyze_video, process_video
 
 THRESHOLD_RATIO = 2000
 MIN_AVG_RED = 60
@@ -120,12 +123,30 @@ def get_filter_matrix(mat):
     adjust_red_green = shifted_g * red_gain
     adjust_red_blue = shifted_b * red_gain * BLUE_MAGIC_VALUE
 
-    return np.array([
-        adjust_red, adjust_red_green, adjust_red_blue, 0, red_offset,
-        0, green_gain, 0, 0, green_offset,
-        0, 0, blue_gain, 0, blue_offset,
-        0, 0, 0, 1, 0,
-    ])
+    return np.array(
+        [
+            adjust_red,
+            adjust_red_green,
+            adjust_red_blue,
+            0,
+            red_offset,
+            0,
+            green_gain,
+            0,
+            0,
+            green_offset,
+            0,
+            0,
+            blue_gain,
+            0,
+            blue_offset,
+            0,
+            0,
+            0,
+            1,
+            0,
+        ]
+    )
 
 
 def correct(mat):
@@ -137,4 +158,4 @@ def correct(mat):
     return corrected_mat
 
 
-__all__ = ["analyze_video", "correct_image", "process_video"]
+__all__ = ["correct", "get_filter_matrix", "apply_filter"]
