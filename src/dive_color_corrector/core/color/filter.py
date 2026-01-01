@@ -1,6 +1,5 @@
 """Color correction filter operations."""
 
-
 import cv2
 import numpy as np
 
@@ -49,10 +48,7 @@ def apply_filter(mat, filt):
     # Operate in-place on a float32 array to reduce temporaries
     filtered_mat = np.zeros_like(mat, dtype=np.float32)
     filtered_mat[..., 0] = (
-        mat[..., 0] * filt[0]
-        + mat[..., 1] * filt[1]
-        + mat[..., 2] * filt[2]
-        + filt[4] * 255
+        mat[..., 0] * filt[0] + mat[..., 1] * filt[1] + mat[..., 2] * filt[2] + filt[4] * 255
     )
     filtered_mat[..., 1] = mat[..., 1] * filt[6] + filt[9] * 255
     filtered_mat[..., 2] = mat[..., 2] * filt[12] + filt[14] * 255
@@ -128,12 +124,30 @@ def get_filter_matrix(mat):
     adjust_red_green = shifted_g * red_gain
     adjust_red_blue = shifted_b * red_gain * BLUE_MAGIC_VALUE
 
-    return np.array([
-        adjust_red, adjust_red_green, adjust_red_blue, 0, red_offset,
-        0, green_gain, 0, 0, green_offset,
-        0, 0, blue_gain, 0, blue_offset,
-        0, 0, 0, 1, 0,
-    ])
+    return np.array(
+        [
+            adjust_red,
+            adjust_red_green,
+            adjust_red_blue,
+            0,
+            red_offset,
+            0,
+            green_gain,
+            0,
+            0,
+            green_offset,
+            0,
+            0,
+            blue_gain,
+            0,
+            blue_offset,
+            0,
+            0,
+            0,
+            1,
+            0,
+        ]
+    )
 
 
 def precompute_filter_matrices(frame_count, filter_indices, filter_matrices):
@@ -162,9 +176,7 @@ def precompute_filter_matrices(frame_count, filter_indices, filter_matrices):
     frame_numbers = np.arange(frame_count, dtype=np.float32)
 
     # Allocate as float32 to reduce memory usage
-    interpolated_matrices = np.zeros(
-        (frame_count, filter_matrix_size), dtype=np.float32
-    )
+    interpolated_matrices = np.zeros((frame_count, filter_matrix_size), dtype=np.float32)
 
     # Interpolate each coefficient across all frames
     for i in range(filter_matrix_size):

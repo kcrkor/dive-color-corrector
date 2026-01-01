@@ -4,9 +4,9 @@ import cv2
 import numpy as np
 from PIL import Image
 
+from dive_color_corrector.core.correction import correct as correct_simple
 from dive_color_corrector.core.models.sesr import DeepSESR
 from dive_color_corrector.core.utils.constants import PREVIEW_HEIGHT, PREVIEW_WIDTH
-from dive_color_corrector.core.correction import correct as correct_simple
 
 
 def correct(mat, use_deep=False):
@@ -22,10 +22,10 @@ def correct(mat, use_deep=False):
     if use_deep:
         # Initialize Deep SESR model
         model = DeepSESR()
-        
+
         # Enhance the image
         enhanced = model.enhance(mat)
-        
+
         return enhanced
     else:
         # Use simple correction

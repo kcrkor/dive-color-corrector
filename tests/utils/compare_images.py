@@ -12,8 +12,16 @@ comparison = np.hstack([original, corrected])
 
 # Add labels
 cv2.putText(comparison, "Original", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
-cv2.putText(comparison, "Corrected", (original.shape[1] + 10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+cv2.putText(
+    comparison,
+    "Corrected",
+    (original.shape[1] + 10, 30),
+    cv2.FONT_HERSHEY_SIMPLEX,
+    1,
+    (255, 255, 255),
+    2,
+)
 
 # Save the comparison
 cv2.imwrite("test/samples/comparison.jpg", comparison)
-print("Comparison saved as test/samples/comparison.jpg") 
+print("Comparison saved as test/samples/comparison.jpg")

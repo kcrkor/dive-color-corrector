@@ -21,4 +21,4 @@ underwater[..., 0] = np.clip(underwater[..., 0] * 0.7, 0, 255)  # Reduce red
 underwater[..., 1] = np.clip(underwater[..., 1] * 0.8, 0, 255)  # Reduce green
 
 # Save the image
-cv2.imwrite("test/samples/underwater.jpg", cv2.cvtColor(underwater, cv2.COLOR_RGB2BGR)) 
+cv2.imwrite("test/samples/underwater.jpg", cv2.cvtColor(underwater, cv2.COLOR_RGB2BGR))

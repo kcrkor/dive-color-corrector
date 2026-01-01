@@ -1,8 +1,9 @@
 """Tests for the Deep SESR model."""
 
+from pathlib import Path
+
 import numpy as np
 import pytest
-from pathlib import Path
 
 from dive_color_corrector.core.models.sesr import DeepSESR
 
@@ -28,13 +29,13 @@ def test_model_initialization():
 def test_preprocess_image():
     """Test image preprocessing."""
     model = DeepSESR()
-    
+
     # Create a test image
     img = np.random.randint(0, 255, (480, 640, 3), dtype=np.uint8)
-    
+
     # Preprocess
     processed = model.preprocess_image(img)
-    
+
     # Check output shape and range
     assert processed.shape == (1, 240, 320, 3)
     assert processed.dtype == np.float32
@@ -44,13 +45,13 @@ def test_preprocess_image():
 def test_postprocess_image():
     """Test image postprocessing."""
     model = DeepSESR()
-    
+
     # Create a test tensor
     img = np.random.uniform(-1, 1, (1, 240, 320, 3)).astype(np.float32)
-    
+
     # Postprocess
     processed = model.postprocess_image(img)
-    
+
     # Check output shape and range
     assert processed.shape == (240, 320, 3)
     assert processed.dtype == np.uint8
@@ -60,14 +61,14 @@ def test_postprocess_image():
 def test_enhance():
     """Test image enhancement pipeline."""
     model = DeepSESR()
-    
+
     # Create a test image
     img = np.random.randint(0, 255, (480, 640, 3), dtype=np.uint8)
-    
+
     # Enhance
     enhanced = model.enhance(img)
-    
+
     # Check output shape and type
     assert enhanced.shape == img.shape
     assert enhanced.dtype == np.uint8
-    assert np.all(enhanced >= 0) and np.all(enhanced <= 255) 
+    assert np.all(enhanced >= 0) and np.all(enhanced <= 255)

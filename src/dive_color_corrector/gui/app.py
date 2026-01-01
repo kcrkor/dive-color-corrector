@@ -1,78 +1,102 @@
 """GUI application for dive color correction."""
 
-import os
 from pathlib import Path
 
-import PySimpleGUI as sg
+import PySimpleGUI as sg  # noqa: N813
 
 from dive_color_corrector.core.processing.image import correct_image
 from dive_color_corrector.core.processing.video import analyze_video, process_video
 from dive_color_corrector.core.utils.constants import (
     IMAGE_FORMATS,
-    VIDEO_FORMATS,
-    PREVIEW_WIDTH,
     PREVIEW_HEIGHT,
+    PREVIEW_WIDTH,
+    VIDEO_FORMATS,
 )
 
 # Window settings
 WINDOW_SIZE = (1200, 800)  # Adjusted to accommodate larger preview
 
+
 def create_window():
     """Create and return the main application window."""
     sg.theme("DarkBlue")
     sg.set_options(font=("Helvetica", 11))
-    
+
     # Create file type filter string
     file_types = (
         ("Images", list(IMAGE_FORMATS.keys())),
         ("Videos", list(VIDEO_FORMATS.keys())),
     )
-    
+
     layout = [
-        [sg.Text("Dive Color Corrector", font=("Helvetica", 16, "bold"), justification="center", expand_x=True)],
+        [
+            sg.Text(
+                "Dive Color Corrector",
+                font=("Helvetica", 16, "bold"),
+                justification="center",
+                expand_x=True,
+            )
+        ],
         [sg.HSeparator()],
         [
-            sg.Column([
-                [sg.Text("Input Files", font=("Helvetica", 12, "bold"))],
-                [sg.FilesBrowse("Select Files", file_types=file_types),
-                 sg.Button("Clear Selection", key="-CLEAR-")],
-                [sg.Listbox(values=[], size=(40, 15), key="-FILE_LIST-", enable_events=True)],
-                [sg.HSeparator()],
-                [sg.Text("Processing Options", font=("Helvetica", 12, "bold"))],
-                [sg.Checkbox("Use Deep Learning Model", key="-USE_DEEP-", default=False)],
-            ], expand_y=True),
+            sg.Column(
+                [
+                    [sg.Text("Input Files", font=("Helvetica", 12, "bold"))],
+                    [
+                        sg.FilesBrowse("Select Files", file_types=file_types),
+                        sg.Button("Clear Selection", key="-CLEAR-"),
+                    ],
+                    [sg.Listbox(values=[], size=(40, 15), key="-FILE_LIST-", enable_events=True)],
+                    [sg.HSeparator()],
+                    [sg.Text("Processing Options", font=("Helvetica", 12, "bold"))],
+                    [sg.Checkbox("Use Deep Learning Model", key="-USE_DEEP-", default=False)],
+                ],
+                expand_y=True,
+            ),
             sg.VSeparator(),
-            sg.Column([
-                [sg.Text("Preview", font=("Helvetica", 12, "bold"))],
-                [sg.Image(key="-PREVIEW-", size=(PREVIEW_WIDTH // 2, PREVIEW_HEIGHT // 2))],
-                [sg.HSeparator()],
-                [sg.Text("Output Folder:", size=(12, 1)),
-                 sg.Input(default_text=str(Path.home() / "Pictures" / "Corrected"), key="-OUTPUT-", size=(30, 1)),
-                 sg.FolderBrowse()],
-                [sg.HSeparator()],
-                [sg.Button("Process Files", key="-PROCESS-", disabled=True, size=(20, 1))],
-                [sg.ProgressBar(100, orientation="h", size=(30, 20), key="-PROGRESS-")],
-                [sg.Text("", key="-STATUS-", size=(40, 1))],
-            ], expand_y=True),
+            sg.Column(
+                [
+                    [sg.Text("Preview", font=("Helvetica", 12, "bold"))],
+                    [sg.Image(key="-PREVIEW-", size=(PREVIEW_WIDTH // 2, PREVIEW_HEIGHT // 2))],
+                    [sg.HSeparator()],
+                    [
+                        sg.Text("Output Folder:", size=(12, 1)),
+                        sg.Input(
+                            default_text=str(Path.home() / "Pictures" / "Corrected"),
+                            key="-OUTPUT-",
+                            size=(30, 1),
+                        ),
+                        sg.FolderBrowse(),
+                    ],
+                    [sg.HSeparator()],
+                    [sg.Button("Process Files", key="-PROCESS-", disabled=True, size=(20, 1))],
+                    [sg.ProgressBar(100, orientation="h", size=(30, 20), key="-PROGRESS-")],
+                    [sg.Text("", key="-STATUS-", size=(40, 1))],
+                ],
+                expand_y=True,
+            ),
         ],
     ]
 
     return sg.Window("Dive Color Corrector", layout, size=WINDOW_SIZE, finalize=True)
 
+
 def valid_file(path):
     """Check if file is a valid image or video."""
     return path.lower().endswith(tuple(IMAGE_FORMATS.keys()) + tuple(VIDEO_FORMATS.keys()))
 
+
 def get_files(filepaths):
     """Get list of valid files from filepaths."""
     return [f for f in filepaths.split(";") if valid_file(f)]
+
 
 def process_files(window, files, output_folder):
     """Process the selected files."""
     total_files = len(files)
     output_path = Path(output_folder)
     output_path.mkdir(parents=True, exist_ok=True)
-    
+
     # Get processing method from checkbox
     use_deep = window["-USE_DEEP-"].get()
 
@@ -90,11 +114,9 @@ def process_files(window, files, output_folder):
                 window["-PREVIEW-"].update(data=preview_data)
             else:  # Video file
                 video_data = None
-                frame_count_estimate = 1
                 for data in analyze_video(file, str(output_file)):
                     if isinstance(data, dict):
                         video_data = data
-                        frame_count_estimate = video_data["frame_count"]
                     else:
                         # data is current frame count during analysis
                         window["-STATUS-"].update(f"Analyzing {filename}: {data} frames")
@@ -104,18 +126,21 @@ def process_files(window, files, output_folder):
                     window["-STATUS-"].update(f"Error: Failed to analyze {filename}")
                     continue
 
-                for percent, preview in process_video(video_data, yield_preview=True, use_deep=use_deep):
+                for percent, preview in process_video(
+                    video_data, yield_preview=True, use_deep=use_deep
+                ):
                     if preview:
                         window["-PREVIEW-"].update(data=preview)
                     if percent is not None:
                         window["-PROGRESS-"].update(int(percent))
                     window.refresh()
         except Exception as e:
-            window["-STATUS-"].update(f"Error processing {filename}: {str(e)}")
+            window["-STATUS-"].update(f"Error processing {filename}: {e!s}")
             continue
 
     window["-STATUS-"].update("Processing complete!")
     window["-PROGRESS-"].update(100)
+
 
 def run_gui():
     """Run the GUI application."""
@@ -137,11 +162,9 @@ def run_gui():
         if event == "-FILE_LIST-":
             files = values["-FILE_LIST-"]
             window["-PROCESS-"].update(disabled=not files)
-            if files:
-                # Show preview of first selected file
-                if files[0].lower().endswith(tuple(IMAGE_FORMATS.keys())):
-                    preview_data = correct_image(files[0], None, use_deep=values["-USE_DEEP-"])  # None to skip saving
-                    window["-PREVIEW-"].update(data=preview_data)
+            if files and files[0].lower().endswith(tuple(IMAGE_FORMATS.keys())):
+                preview_data = correct_image(files[0], None, use_deep=values["-USE_DEEP-"])
+                window["-PREVIEW-"].update(data=preview_data)
 
         if event == "-PROCESS-":
             files = values["-FILE_LIST-"]

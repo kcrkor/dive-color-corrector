@@ -94,9 +94,7 @@ def process_video(video_data, yield_preview=False, use_deep=False):
     """
     cap = cv2.VideoCapture(video_data["input_video_path"])
     if not cap.isOpened():
-        raise ValueError(
-            f"Could not open video file: {video_data['input_video_path']}"
-        )
+        raise ValueError(f"Could not open video file: {video_data['input_video_path']}")
 
     frame_width = video_data["width"]
     frame_height = video_data["height"]
@@ -105,9 +103,7 @@ def process_video(video_data, yield_preview=False, use_deep=False):
 
     # Initialize VideoWriter
     fourcc = cv2.VideoWriter_fourcc(*VIDEO_CODEC)
-    out = cv2.VideoWriter(
-        video_data["output_video_path"], fourcc, fps, (frame_width, frame_height)
-    )
+    out = cv2.VideoWriter(video_data["output_video_path"], fourcc, fps, (frame_width, frame_height))
 
     # Precompute interpolated filter matrices for non-deep mode
     interpolated_matrices = None

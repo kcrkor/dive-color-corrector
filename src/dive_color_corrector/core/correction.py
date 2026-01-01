@@ -158,4 +158,4 @@ def correct(mat):
     return corrected_mat
 
 
-__all__ = ["correct", "get_filter_matrix", "apply_filter"]
+__all__ = ["apply_filter", "correct", "get_filter_matrix"]

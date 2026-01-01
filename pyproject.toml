@@ -1,23 +1,60 @@
 [project]
 name = "dive_color_corrector"
 dynamic = ["version"]
-description = "A tool for correcting underwater images"
+description = "Restore natural colors in underwater images and videos"
 readme = "README.md"
+license = {text = "MIT"}
 requires-python = ">=3.11"
+authors = [
+    {name = "KCRK"}
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Multimedia :: Graphics :: Graphics Conversion",
+    "Topic :: Scientific/Engineering :: Image Processing",
+]
+keywords = ["underwater", "color-correction", "image-processing", "video-processing", "scuba", "diving"]
+
 dependencies = [
     "opencv-python>=4.8.0",
     "numpy>=1.24.0",
-    "tensorflow-cpu>=2.16.0,<=2.19.0",  # Compatible with current platform
-    "keras>=3.5.0",  # Updated to match TensorFlow version
+    "pillow>=10.0.0",
+    "tensorflow-cpu>=2.16.0,<=2.19.0",
+    "keras>=3.5.0",
 ]
 
 [project.optional-dependencies]
-gui = [
-    "PySimpleGUI>=4.60.0",
+gui = ["PySimpleGUI>=4.60.0"]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "pytest-xdist>=3.0.0",
+    "ruff>=0.1.0",
+    "mypy>=1.0.0",
+    "pre-commit>=3.0.0",
+]
+build = [
+    "pyinstaller>=6.0.0",
+    "pillow>=10.0.0",
 ]
 
+[project.scripts]
+dive-color-corrector = "dive_color_corrector.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/kcrkor/dive-color-corrector"
+Documentation = "https://github.com/kcrkor/dive-color-corrector#readme"
+Repository = "https://github.com/kcrkor/dive-color-corrector"
+Issues = "https://github.com/kcrkor/dive-color-corrector/issues"
+Changelog = "https://github.com/kcrkor/dive-color-corrector/blob/main/CHANGELOG.md"
+
 [build-system]
-requires = ["hatchling>=1.18.0", "uv>=0.6.0"]
+requires = ["hatchling>=1.18.0"]
 build-backend = "hatchling.build"
 
 [tool.hatch.version]
@@ -34,14 +71,35 @@ line-length = 100
 target-version = "py311"
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "N", "W", "B", "UP", "RUF"]
+select = ["E", "F", "I", "N", "W", "B", "UP", "RUF", "PTH", "SIM"]
 ignore = []
 
 [tool.ruff.lint.isort]
 known-first-party = ["dive_color_corrector"]
 
-[tool.ruff.lint.mccabe]
-max-complexity = 10
-
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v --tb=short"
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+]
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_ignores = true
+disallow_untyped_defs = true
+ignore_missing_imports = true
+
+[tool.coverage.run]
+source = ["src/dive_color_corrector"]
+branch = true
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+]

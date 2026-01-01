@@ -17,13 +17,13 @@ def parse_args():
     image_parser = subparsers.add_parser("image", help="Process a single image")
     image_parser.add_argument("input", type=str, help="Input image path")
     image_parser.add_argument("output", type=str, help="Output image path")
-    image_parser.add_argument("--use-deep", action="store_true", help="Use deep learning model instead of simple correction")
+    image_parser.add_argument("--use-deep", action="store_true", help="Use deep learning model")
 
     # Video processing
     video_parser = subparsers.add_parser("video", help="Process a video")
     video_parser.add_argument("input", type=str, help="Input video path")
     video_parser.add_argument("output", type=str, help="Output video path")
-    video_parser.add_argument("--use-deep", action="store_true", help="Use deep learning model instead of simple correction")
+    video_parser.add_argument("--use-deep", action="store_true", help="Use deep learning model")
 
     return parser.parse_args()
 
@@ -67,4 +67,4 @@ def main():
             print(f"\nSuccessfully processed video: {output_path}")
     except Exception as e:
         print(f"Error processing file: {e}", file=sys.stderr)
-        sys.exit(1) 
+        sys.exit(1)
