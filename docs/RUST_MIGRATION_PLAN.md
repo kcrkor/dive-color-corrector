@@ -177,122 +177,262 @@ dive-color-corrector-rs/
    }
    ```
 
-### Phase 4: Video Processing with ez-ffmpeg
+### Phase 4: Video Processing with FFmpeg + Rust Filter
+
+**Architecture:**
+```
+┌─────────────────────────────────────────────────────────────┐
+│                        FFmpeg                                │
+│  ┌──────────┐   ┌──────────┐       ┌──────────┐   ┌───────┐ │
+│  │  Demux   │ → │  Decode  │ → ... │  Encode  │ → │  Mux  │ │
+│  └──────────┘   └──────────┘   ↑   └──────────┘   └───────┘ │
+└────────────────────────────────┼────────────────────────────┘
+                                 │
+                    ┌────────────┴────────────┐
+                    │   Rust Color Filter     │
+                    │  (Pure Rust, no FFI)    │
+                    │  - apply_filter()       │
+                    │  - hue_shift_red()      │
+                    │  - precompute_matrices()│
+                    └─────────────────────────┘
+```
 
 **Deliverables:**
-- Video analysis with progress events
-- Custom FrameFilter for color correction
-- Video processing with frame streaming
+- FFmpeg-based video decode/encode pipeline
+- Pure Rust color correction filter (ported from Python)
+- Two-pass processing: analyze → precompute → apply
 - Tauri event emission for progress updates
 
 **Key Crates:**
-- `ez-ffmpeg` - Safe FFmpeg bindings with custom filter support
+- `ffmpeg-next` - FFmpeg bindings for video I/O
+- `ndarray` - Frame data manipulation
+- `rayon` - Parallel pixel processing
 - `crossbeam-channel` - Progress communication
-
-**Requirements:**
-- Rust 1.80.0+
-- FFmpeg 7.0+
-
-**Why ez-ffmpeg:**
-- Safe Rust API without unsafe code
-- Custom `FrameFilter` trait for pixel-level processing
-- Direct frame data access via `get_data_mut()`
-- Optional GPU acceleration with OpenGL feature
-- Broad codec support via FFmpeg
 
 **Tasks:**
 
-1. Add ez-ffmpeg dependency:
+1. Add dependencies:
    ```toml
    [dependencies]
-   ez-ffmpeg = { version = "0.4", features = ["static"] }
+   ffmpeg-next = "7.0"
+   ndarray = "0.15"
+   rayon = "1.8"
    ```
 
-2. Implement custom `ColorCorrectionFilter`:
+2. Implement video decoder/encoder wrapper:
    ```rust
-   use ez_ffmpeg::core::filter::frame_filter::{FrameFilter, FrameFilterContext};
-   use ez_ffmpeg::core::frame::Frame;
-   use ffmpeg_sys_next::{AVMediaType, AVPixelFormat};
+   use ffmpeg_next as ffmpeg;
+   use ffmpeg::{codec, format, frame, media, software::scaling};
+   use ndarray::Array3;
 
-   use crate::core::color::filter::{apply_filter, FilterMatrix};
-
-   pub struct ColorCorrectionFilter {
-       filter_matrices: Vec<FilterMatrix>,
-       current_frame: usize,
+   pub struct VideoProcessor {
+       input_ctx: format::context::Input,
+       output_ctx: format::context::Output,
+       decoder: codec::decoder::Video,
+       encoder: codec::encoder::Video,
+       scaler: scaling::Context,
+       video_stream_index: usize,
+       frame_count: usize,
+       fps: f64,
    }
 
-   impl ColorCorrectionFilter {
-       pub fn new(filter_matrices: Vec<FilterMatrix>) -> Self {
-           Self {
-               filter_matrices,
-               current_frame: 0,
-           }
+   impl VideoProcessor {
+       pub fn new(input_path: &str, output_path: &str) -> Result<Self, ffmpeg::Error> {
+           ffmpeg::init()?;
+
+           let input_ctx = format::input(input_path)?;
+           let input_stream = input_ctx
+               .streams()
+               .best(media::Type::Video)
+               .ok_or(ffmpeg::Error::StreamNotFound)?;
+
+           let video_stream_index = input_stream.index();
+           let decoder = ffmpeg::codec::context::Context::from_parameters(
+               input_stream.parameters()
+           )?.decoder().video()?;
+
+           let fps = input_stream.avg_frame_rate().into();
+           let frame_count = input_stream.frames() as usize;
+
+           // Set up output
+           let mut output_ctx = format::output(output_path)?;
+           let codec = ffmpeg::encoder::find(codec::Id::H264)
+               .ok_or(ffmpeg::Error::EncoderNotFound)?;
+
+           let mut output_stream = output_ctx.add_stream(codec)?;
+           let mut encoder = codec::context::Context::new_with_codec(codec)
+               .encoder().video()?;
+
+           encoder.set_width(decoder.width());
+           encoder.set_height(decoder.height());
+           encoder.set_format(format::Pixel::YUV420P);
+           encoder.set_time_base(input_stream.time_base());
+
+           output_stream.set_parameters(&encoder);
+
+           // Scaler: convert decoded frame to RGB for processing
+           let scaler = scaling::Context::get(
+               decoder.format(), decoder.width(), decoder.height(),
+               format::Pixel::RGB24, decoder.width(), decoder.height(),
+               scaling::Flags::BILINEAR,
+           )?;
+
+           Ok(Self {
+               input_ctx, output_ctx, decoder, encoder, scaler,
+               video_stream_index, frame_count, fps,
+           })
        }
-   }
 
-   impl FrameFilter for ColorCorrectionFilter {
-       fn media_type(&self) -> AVMediaType {
-           AVMediaType::AVMEDIA_TYPE_VIDEO
-       }
-
-       fn filter_frame(
-           &mut self,
-           mut frame: Frame,
-           _ctx: &FrameFilterContext,
-       ) -> Result<Option<Frame>, String> {
-           // Get the interpolated filter for current frame
-           let filter = &self.filter_matrices[self.current_frame];
-           self.current_frame += 1;
-
-           // Access frame planes (YUV or RGB depending on pixel format)
-           match frame.format() {
-               AVPixelFormat::AV_PIX_FMT_RGB24 => {
-                   let data = frame.get_data_mut(0)
-                       .ok_or("Failed to get RGB plane")?;
-
-                   // Apply color correction filter to RGB data
-                   apply_filter_rgb_inplace(data, frame.width(), frame.height(), filter);
-               }
-               AVPixelFormat::AV_PIX_FMT_YUV420P => {
-                   // For YUV, we need to convert or apply in YUV space
-                   let y_data = frame.get_data_mut(0).ok_or("Failed to get Y plane")?;
-                   let u_data = frame.get_data_mut(1).ok_or("Failed to get U plane")?;
-                   let v_data = frame.get_data_mut(2).ok_or("Failed to get V plane")?;
-
-                   apply_filter_yuv_inplace(y_data, u_data, v_data, filter);
-               }
-               _ => return Err("Unsupported pixel format".to_string()),
-           }
-
-           Ok(Some(frame))
-       }
+       pub fn frame_count(&self) -> usize { self.frame_count }
+       pub fn fps(&self) -> f64 { self.fps }
    }
    ```
 
-3. Implement video processing pipeline:
+3. Implement frame iteration and processing:
    ```rust
-   use ez_ffmpeg::FfmpegContext;
+   impl VideoProcessor {
+       /// Decode frames and yield RGB data for processing
+       pub fn decode_frames(&mut self) -> impl Iterator<Item = (usize, Array3<u8>)> + '_ {
+           let mut frame_idx = 0;
+           let mut decoded = frame::Video::empty();
+           let mut rgb_frame = frame::Video::empty();
 
-   pub fn process_video(
-       input_path: &str,
-       output_path: &str,
-       filter_matrices: Vec<FilterMatrix>,
-   ) -> Result<(), Box<dyn std::error::Error>> {
-       let color_filter = ColorCorrectionFilter::new(filter_matrices);
+           self.input_ctx.packets()
+               .filter_map(move |(stream, packet)| {
+                   if stream.index() != self.video_stream_index {
+                       return None;
+                   }
 
-       FfmpegContext::builder()
-           .input(input_path)
-           .filter_desc("format=rgb24")  // Convert to RGB for our filter
-           .frame_filter(color_filter)   // Apply custom color correction
-           .output(output_path)
-           .build()?
-           .run()?;
+                   self.decoder.send_packet(&packet).ok()?;
 
-       Ok(())
+                   while self.decoder.receive_frame(&mut decoded).is_ok() {
+                       // Convert to RGB
+                       self.scaler.run(&decoded, &mut rgb_frame).ok()?;
+
+                       // Convert to ndarray
+                       let width = rgb_frame.width() as usize;
+                       let height = rgb_frame.height() as usize;
+                       let data = rgb_frame.data(0);
+                       let stride = rgb_frame.stride(0);
+
+                       let mut arr = Array3::<u8>::zeros((height, width, 3));
+                       for y in 0..height {
+                           let row_start = y * stride;
+                           for x in 0..width {
+                               let px = row_start + x * 3;
+                               arr[[y, x, 0]] = data[px];     // R
+                               arr[[y, x, 1]] = data[px + 1]; // G
+                               arr[[y, x, 2]] = data[px + 2]; // B
+                           }
+                       }
+
+                       frame_idx += 1;
+                       return Some((frame_idx, arr));
+                   }
+                   None
+               })
+       }
+
+       /// Encode processed RGB frame back to video
+       pub fn encode_frame(&mut self, rgb_data: &Array3<u8>) -> Result<(), ffmpeg::Error> {
+           // Convert RGB back to YUV420P for encoding
+           // ... encoding logic
+           Ok(())
+       }
    }
    ```
 
-4. Implement two-pass processing with Tauri events:
+4. Implement pure Rust color correction filter:
+   ```rust
+   use ndarray::{Array3, Axis, s};
+   use rayon::prelude::*;
+
+   pub type FilterMatrix = [f32; 20];
+
+   /// Apply color correction filter to RGB frame (in-place, parallelized)
+   pub fn apply_filter(frame: &mut Array3<u8>, filter: &FilterMatrix) {
+       let (height, width, _) = frame.dim();
+
+       // Process rows in parallel
+       frame.axis_iter_mut(Axis(0))
+           .into_par_iter()
+           .for_each(|mut row| {
+               for x in 0..width {
+                   let r = row[[x, 0]] as f32;
+                   let g = row[[x, 1]] as f32;
+                   let b = row[[x, 2]] as f32;
+
+                   // Apply filter matrix
+                   let new_r = r * filter[0] + g * filter[1] + b * filter[2] + filter[4] * 255.0;
+                   let new_g = g * filter[6] + filter[9] * 255.0;
+                   let new_b = b * filter[12] + filter[14] * 255.0;
+
+                   row[[x, 0]] = new_r.clamp(0.0, 255.0) as u8;
+                   row[[x, 1]] = new_g.clamp(0.0, 255.0) as u8;
+                   row[[x, 2]] = new_b.clamp(0.0, 255.0) as u8;
+               }
+           });
+   }
+
+   /// Compute filter matrix from frame (analysis pass)
+   pub fn get_filter_matrix(frame: &Array3<u8>) -> FilterMatrix {
+       // Resize to 256x256 for analysis
+       let resized = resize_frame(frame, 256, 256);
+
+       // Calculate average RGB
+       let (avg_r, avg_g, avg_b) = calculate_mean_rgb(&resized);
+
+       // Find hue shift for red channel
+       let hue_shift = find_hue_shift(avg_r, MIN_AVG_RED, MAX_HUE_SHIFT);
+
+       // Apply hue shift and compute histograms
+       let shifted = apply_hue_shift(&resized, hue_shift);
+       let (hist_r, hist_g, hist_b) = compute_histograms(&shifted);
+
+       // Find normalizing intervals
+       let threshold = (256 * 256) as f32 / THRESHOLD_RATIO;
+       let (r_low, r_high) = find_normalizing_interval(&hist_r, threshold);
+       let (g_low, g_high) = find_normalizing_interval(&hist_g, threshold);
+       let (b_low, b_high) = find_normalizing_interval(&hist_b, threshold);
+
+       // Compute gains and offsets
+       let (shifted_r, shifted_g, shifted_b) = hue_shift_coefficients(hue_shift);
+
+       let red_gain = 256.0 / (r_high - r_low);
+       let green_gain = 256.0 / (g_high - g_low);
+       let blue_gain = 256.0 / (b_high - b_low);
+
+       let red_offset = (-r_low / 256.0) * red_gain;
+       let green_offset = (-g_low / 256.0) * green_gain;
+       let blue_offset = (-b_low / 256.0) * blue_gain;
+
+       [
+           shifted_r * red_gain,
+           shifted_g * red_gain,
+           shifted_b * red_gain * BLUE_MAGIC_VALUE,
+           0.0, red_offset,
+           0.0, green_gain, 0.0, 0.0, green_offset,
+           0.0, 0.0, blue_gain, 0.0, blue_offset,
+           0.0, 0.0, 0.0, 1.0, 0.0,
+       ]
+   }
+
+   /// Precompute interpolated filter matrices for all frames
+   pub fn precompute_filter_matrices(
+       frame_count: usize,
+       indices: &[usize],
+       matrices: &[FilterMatrix],
+   ) -> Vec<FilterMatrix> {
+       (0..frame_count)
+           .map(|frame_idx| {
+               // Linear interpolation between sampled matrices
+               interpolate_filter(frame_idx, indices, matrices)
+           })
+           .collect()
+   }
+   ```
+
+5. Implement two-pass video processing with Tauri:
    ```rust
    #[tauri::command]
    async fn analyze_video(
@@ -300,35 +440,36 @@ dive-color-corrector-rs/
        input: String,
        output: String,
    ) -> Result<VideoData, String> {
-       use ez_ffmpeg::FfmpegContext;
+       let mut processor = VideoProcessor::new(&input, &output)
+           .map_err(|e| e.to_string())?;
 
-       // First pass: sample frames for filter matrix computation
+       let fps = processor.fps();
+       let sample_interval = (fps * SAMPLE_SECONDS as f64) as usize;
+
        let mut filter_indices = Vec::new();
        let mut filter_matrices = Vec::new();
        let mut frame_count = 0;
 
-       let ctx = FfmpegContext::builder()
-           .input(&input)
-           .frame_filter(AnalysisFilter::new(|frame_idx, frame| {
-               frame_count = frame_idx;
-               window.emit("analysis-progress", frame_idx).ok();
+       // Analysis pass: sample frames for filter computation
+       for (idx, frame) in processor.decode_frames() {
+           frame_count = idx;
 
-               // Sample every N frames
-               if frame_idx % (fps * SAMPLE_SECONDS) == 0 {
-                   let matrix = compute_filter_matrix(&frame);
-                   filter_indices.push(frame_idx);
-                   filter_matrices.push(matrix);
-               }
-           }))
-           .build()
-           .map_err(|e| e.to_string())?;
+           // Emit progress
+           window.emit("analysis-progress", idx).ok();
 
-       ctx.run().map_err(|e| e.to_string())?;
+           // Sample every N frames
+           if idx % sample_interval == 0 {
+               let matrix = get_filter_matrix(&frame);
+               filter_indices.push(idx);
+               filter_matrices.push(matrix);
+           }
+       }
 
        Ok(VideoData {
            input_path: input,
            output_path: output,
            frame_count,
+           fps,
            filter_indices,
            filter_matrices,
        })
@@ -340,46 +481,68 @@ dive-color-corrector-rs/
        video_data: VideoData,
    ) -> Result<(), String> {
        // Precompute interpolated matrices
-       let interpolated = precompute_filter_matrices(
+       let matrices = precompute_filter_matrices(
            video_data.frame_count,
            &video_data.filter_indices,
            &video_data.filter_matrices,
        );
 
-       // Create filter with progress callback
-       let filter = ColorCorrectionFilter::new(interpolated)
-           .with_progress(|percent| {
-               window.emit("process-progress", percent).ok();
-           });
+       let mut processor = VideoProcessor::new(
+           &video_data.input_path,
+           &video_data.output_path,
+       ).map_err(|e| e.to_string())?;
 
-       FfmpegContext::builder()
-           .input(&video_data.input_path)
-           .filter_desc("format=rgb24")
-           .frame_filter(filter)
-           .output(&video_data.output_path)
-           .build()
-           .map_err(|e| e.to_string())?
-           .run()
-           .map_err(|e| e.to_string())?;
+       // Processing pass: apply filters
+       for (idx, mut frame) in processor.decode_frames() {
+           // Apply color correction (pure Rust)
+           apply_filter(&mut frame, &matrices[idx - 1]);
 
+           // Encode back to video (FFmpeg)
+           processor.encode_frame(&frame).map_err(|e| e.to_string())?;
+
+           // Emit progress
+           let percent = (idx as f64 / video_data.frame_count as f64) * 100.0;
+           window.emit("process-progress", percent).ok();
+       }
+
+       processor.finalize().map_err(|e| e.to_string())?;
        Ok(())
    }
    ```
 
-5. Optional: GPU-accelerated processing with OpenGL:
-   ```toml
-   [dependencies]
-   ez-ffmpeg = { version = "0.4", features = ["static", "opengl"] }
-   ```
-
+6. Implement hue shift algorithm in Rust:
    ```rust
-   // Use GLSL shader for color correction (GPU-accelerated)
-   FfmpegContext::builder()
-       .input(input_path)
-       .gl_filter(ColorCorrectionShader::new(filter_matrix))
-       .output(output_path)
-       .build()?
-       .run()?;
+   use std::f32::consts::PI;
+
+   /// Hue shift transformation for red channel recovery
+   pub fn hue_shift_red(rgb: &Array3<f32>, hue_degrees: f32) -> Array3<f32> {
+       let u = (hue_degrees * PI / 180.0).cos();
+       let w = (hue_degrees * PI / 180.0).sin();
+
+       let (height, width, _) = rgb.dim();
+       let mut result = Array3::<f32>::zeros((height, width, 3));
+
+       // Transformation coefficients
+       let r_from_r = 0.299 + 0.701 * u + 0.168 * w;
+       let r_from_g = 0.587 - 0.587 * u + 0.330 * w;
+       let r_from_b = 0.114 - 0.114 * u - 0.497 * w;
+
+       ndarray::Zip::from(result.rows_mut())
+           .and(rgb.rows())
+           .par_for_each(|mut out_row, in_row| {
+               for x in 0..width {
+                   let r = in_row[[x, 0]];
+                   let g = in_row[[x, 1]];
+                   let b = in_row[[x, 2]];
+
+                   out_row[[x, 0]] = r * r_from_r + g * r_from_g + b * r_from_b;
+                   out_row[[x, 1]] = g;
+                   out_row[[x, 2]] = b;
+               }
+           });
+
+       result
+   }
    ```
 
 ### Phase 5: Deep Learning Integration
@@ -537,73 +700,66 @@ dive-color-corrector-rs/
 
 | Python | Rust Equivalent | Notes |
 |--------|-----------------|-------|
-| `numpy` | `ndarray` | N-dimensional arrays |
+| `numpy` | `ndarray` | N-dimensional arrays with parallel iteration |
 | `opencv-python` (images) | `image` | Image I/O, resize, format conversion |
-| `opencv-python` (video) | `ez-ffmpeg` | Video I/O with custom FrameFilter support |
+| `opencv-python` (video) | `ffmpeg-next` | FFmpeg bindings for video decode/encode |
 | `pillow` | `image` + `kamadak-exif` | EXIF preservation |
 | `tensorflow` | `ort` (ONNX Runtime) | Model inference |
 | `PySimpleGUI` | Tauri + Vue/React | Desktop UI |
 
-## ez-ffmpeg Integration Details
+## FFmpeg Integration Architecture
 
-### Crate Features
+### Separation of Concerns
 
-| Feature | Purpose |
-|---------|---------|
-| `static` | Static linking of FFmpeg libraries (recommended for distribution) |
-| `opengl` | GPU-accelerated OpenGL filters with GLSL shaders |
-| `rtmp` | Embedded RTMP server for streaming |
-| `async` | Async/await support for non-blocking operations |
+```
+┌────────────────────────────────────────────────────────────────┐
+│                    ffmpeg-next (Rust bindings)                  │
+├────────────────────────────────────────────────────────────────┤
+│  Demuxing    │  Decoding    │  Scaling     │  Encoding  │ Mux  │
+│  (container) │  (H264/VP9)  │  (YUV→RGB)   │  (H264)    │      │
+└──────────────┴──────────────┴──────┬───────┴────────────┴──────┘
+                                     │
+                    ┌────────────────┴────────────────┐
+                    │      Pure Rust Processing       │
+                    ├─────────────────────────────────┤
+                    │  • apply_filter() - rayon      │
+                    │  • get_filter_matrix()          │
+                    │  • hue_shift_red()              │
+                    │  • precompute_filter_matrices() │
+                    │  • histogram computation        │
+                    └─────────────────────────────────┘
+```
 
-### Frame Format Considerations
+### Why This Approach
 
-Most videos use YUV420P format. Options for color correction:
+1. **FFmpeg handles complexity**: Container formats, codecs, pixel format conversion
+2. **Rust handles performance**: Parallel pixel processing with rayon
+3. **Clean boundary**: RGB frames passed between FFmpeg and Rust filter
+4. **Testable**: Filter functions can be unit tested without video I/O
 
-1. **Convert to RGB**: Use `filter_desc("format=rgb24")` before custom filter
-   - Pro: Matches our existing RGB-based algorithm
-   - Con: Extra conversion overhead
+### Frame Processing Pipeline
 
-2. **Native YUV processing**: Implement color correction in YUV space
-   - Pro: No conversion overhead
-   - Con: Algorithm needs adaptation
-
-3. **GPU shader**: Use OpenGL feature with GLSL fragment shader
-   - Pro: Massive performance boost for 4K+ video
-   - Con: Requires OpenGL context, more complex setup
-
-### Example GLSL Color Correction Shader
-
-```glsl
-#version 330 core
-
-uniform sampler2D inputTexture;
-uniform mat4 colorMatrix;  // Our 20-element filter as 4x4 + offsets
-
-in vec2 texCoord;
-out vec4 fragColor;
-
-void main() {
-    vec4 color = texture(inputTexture, texCoord);
-
-    // Apply color transformation matrix
-    vec3 corrected;
-    corrected.r = dot(color.rgb, colorMatrix[0].rgb) + colorMatrix[0].a;
-    corrected.g = color.g * colorMatrix[1].g + colorMatrix[1].a;
-    corrected.b = color.b * colorMatrix[2].b + colorMatrix[2].a;
-
-    fragColor = vec4(clamp(corrected, 0.0, 1.0), color.a);
-}
+```
+Video File → Demux → Decode → Scale(YUV→RGB) → [Rust Filter] → Scale(RGB→YUV) → Encode → Mux → Output
+                                                    │
+                                    ┌───────────────┴───────────────┐
+                                    │   apply_filter(&mut frame,    │
+                                    │                &filter_matrix) │
+                                    │   - Parallel row processing   │
+                                    │   - In-place modification     │
+                                    │   - SIMD-friendly layout      │
+                                    └───────────────────────────────┘
 ```
 
 ## Risk Mitigation
 
 | Risk | Mitigation |
 |------|------------|
-| FFmpeg 7.0+ requirement | Bundle FFmpeg with static linking or document install steps |
-| ez-ffmpeg API stability | Pin version, monitor releases, contribute upstream if needed |
+| FFmpeg linking complexity | Use system FFmpeg or bundle with static linking |
+| ffmpeg-next API changes | Pin version, wrap in abstraction layer |
 | ONNX model conversion issues | Validate model outputs match Python implementation |
-| Cross-platform FFmpeg builds | Use `static` feature, test in CI on all platforms |
-| GPU shader compatibility | Fallback to CPU path if OpenGL unavailable |
+| Cross-platform FFmpeg builds | Test in CI on Windows/macOS/Linux |
+| Performance regression | Benchmark against Python, optimize hot paths with rayon |
 
 ## Success Criteria
 
