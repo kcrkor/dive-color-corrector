@@ -395,7 +395,7 @@ python -c "import pstats; p = pstats.Stats('profile.out'); p.sort_stats('cumtime
 - [ ] PyPI publication working
 - [ ] CLI verbose/quiet flags
 - [ ] GUI drag-and-drop
-- [ ] DeepSESR singleton optimization
+- [x] DeepSESR singleton optimization
 
 ### 8.2 Medium-term (v1.4.0)
 
@@ -421,16 +421,16 @@ See `docs/RUST_MIGRATION_PLAN.md` for full details.
 ### Immediate (This Sprint)
 
 - [x] Fix CI/CD workflow_call issue
-- [ ] Add video processing tests
-- [ ] Wire up custom exceptions
-- [ ] Increase test coverage to 70%
+- [x] Add video processing tests
+- [x] Wire up custom exceptions
+- [x] Increase test coverage to 70% (Reached 74%)
 
 ### Next Sprint
 
 - [ ] CLI enhancements (verbose, quiet, dry-run)
-- [ ] DeepSESR singleton pattern
+- [x] DeepSESR singleton pattern (Completed early)
 - [ ] GUI drag-and-drop
-- [ ] README badges and documentation
+- [x] README badges and documentation (Badges added)
 
 ### Following Sprint
 
