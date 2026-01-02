@@ -1,9 +1,10 @@
 from typing import Any
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 from dive_color_corrector.cli import main
+from dive_color_corrector.core.schemas import VideoData
 
 
 def test_cli_no_args() -> None:
@@ -30,7 +31,8 @@ def test_cli_image_mode(mock_exists: Any, mock_correct: Any) -> None:
 @patch("dive_color_corrector.cli.Path.exists")
 def test_cli_video_mode(mock_exists: Any, mock_process: Any, mock_analyze: Any) -> None:
     mock_exists.return_value = True
-    mock_analyze.return_value = [0, 50, {"data": "video_data"}]
+    mock_video_data = MagicMock(spec=VideoData)
+    mock_analyze.return_value = [0, 50, mock_video_data]
     mock_process.return_value = [(0.0, None), (100.0, None)]
 
     main(["video", "input.mp4", "output.mp4"])

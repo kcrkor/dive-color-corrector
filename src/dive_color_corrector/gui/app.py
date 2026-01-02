@@ -6,6 +6,7 @@ import PySimpleGUI as sg  # noqa: N813
 
 from dive_color_corrector.core.processing.image import correct_image
 from dive_color_corrector.core.processing.video import analyze_video, process_video
+from dive_color_corrector.core.schemas import VideoData
 from dive_color_corrector.core.utils.constants import (
     IMAGE_FORMATS,
     PREVIEW_HEIGHT,
@@ -183,7 +184,7 @@ def process_files(window: sg.Window, files: list[str], output_folder: str) -> No
             else:
                 video_data = None
                 for data in analyze_video(file, str(output_file)):
-                    if isinstance(data, dict):
+                    if isinstance(data, VideoData):
                         video_data = data
                     else:
                         window["-STATUS-"].update(
