@@ -6,6 +6,7 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
+from dive_color_corrector.core.models import SESR_AVAILABLE
 from dive_color_corrector.core.processing.image import correct_image
 from dive_color_corrector.core.processing.video import analyze_video, process_video
 from dive_color_corrector.core.schemas import VideoData
@@ -16,6 +17,13 @@ IMAGE_EXTENSIONS = set(IMAGE_FORMATS.keys())
 VIDEO_EXTENSIONS = set(VIDEO_FORMATS.keys())
 
 
+def _add_sesr_arg(parser: argparse.ArgumentParser) -> None:
+    sesr_help = "Use Deep SESR neural network"
+    if not SESR_AVAILABLE:
+        sesr_help += " (unavailable - install with: pip install dive_color_corrector[sesr])"
+    parser.add_argument("--sesr", action="store_true", help=sesr_help)
+
+
 def parse_args(args: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Correct colors in underwater images and videos")
     parser.add_argument("--verbose", "-v", action="store_true", help="Enable verbose logging")
@@ -24,17 +32,17 @@ def parse_args(args: Sequence[str] | None = None) -> argparse.Namespace:
     image_parser = subparsers.add_parser("image", help="Process a single image")
     image_parser.add_argument("input", type=str, help="Input image path")
     image_parser.add_argument("output", type=str, help="Output image path")
-    image_parser.add_argument("--sesr", action="store_true", help="Use Deep SESR neural network")
+    _add_sesr_arg(image_parser)
 
     video_parser = subparsers.add_parser("video", help="Process a video")
     video_parser.add_argument("input", type=str, help="Input video path")
     video_parser.add_argument("output", type=str, help="Output video path")
-    video_parser.add_argument("--sesr", action="store_true", help="Use Deep SESR neural network")
+    _add_sesr_arg(video_parser)
 
     batch_parser = subparsers.add_parser("batch", help="Process all files in a directory")
     batch_parser.add_argument("input_dir", type=str, help="Input directory path")
     batch_parser.add_argument("output_dir", type=str, help="Output directory path")
-    batch_parser.add_argument("--sesr", action="store_true", help="Use Deep SESR neural network")
+    _add_sesr_arg(batch_parser)
     batch_parser.add_argument(
         "--images-only", action="store_true", help="Process only images (skip videos)"
     )
@@ -125,6 +133,10 @@ def main(argv: Sequence[str] | None = None) -> None:
 
     if not args.mode:
         logger.error("Please specify a mode: image, video, or batch")
+        sys.exit(1)
+
+    if getattr(args, "sesr", False) and not SESR_AVAILABLE:
+        logger.error("SESR not available. Install with: pip install dive_color_corrector[sesr]")
         sys.exit(1)
 
     if args.mode == "batch":

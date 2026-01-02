@@ -1,151 +1,110 @@
 # Dive Color Corrector
 
-A Python application for correcting underwater images, making them more vibrant and true to life.
+Restore natural colors in underwater images and videos. Corrects the blue/green color cast caused by water absorbing red light.
 
 ## Features
 
 - Color correction for underwater images and videos
-- User-friendly GUI interface
-- Support for multiple image formats
-- Real-time preview of corrections
-- Batch processing capabilities
+- Two correction modes: fast hue-shift algorithm or Deep SESR neural network
+- GUI application with real-time preview
+- CLI for batch processing
+- Cross-platform: Windows, Linux
 
 ## Installation
 
-### From PyPI (Coming Sometime...)
+### Download Pre-built Executables
+
+Download from [Releases](https://github.com/kcrkor/dive-color-corrector/releases):
+
+| Version | Description |
+|---------|-------------|
+| **Dive Color Corrector** | Full version with Deep SESR neural network (~100MB) |
+| **Dive Color Corrector Lite** | Lightweight version, fast algorithm only (~30MB) |
+
+### From PyPI
 
 ```bash
-pip install dive-color-corrector
+# Lite (GUI only, no neural network)
+pip install dive-color-corrector[gui]
+
+# Full (GUI + Deep SESR neural network)
+pip install dive-color-corrector[full]
 ```
 
 ### From Source
 
-1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/dive-color-corrector.git
+git clone https://github.com/kcrkor/dive-color-corrector.git
 cd dive-color-corrector
-```
 
-2. Create and activate a virtual environment:
-```bash
-uv venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-```
+uv venv && source .venv/bin/activate
 
-3. Install the package:
-```bash
+# Lite
 uv pip install -e ".[gui]"
+
+# Full (with SESR)
+uv pip install -e ".[gui,sesr]"
 ```
 
 ## Usage
 
 ### GUI Application
 
-Launch the application:
 ```bash
 python -m dive_color_corrector
 ```
 
-### Command Line Interface
+### Command Line
 
-For images:
 ```bash
-python -m dive_color_corrector image /path/to/raw.png /path/to/corrected.png
-```
+# Single image
+python -m dive_color_corrector image input.jpg output.jpg
 
-For videos:
-```bash
-python -m dive_color_corrector video /path/to/raw.mp4 /path/to/corrected.mp4
+# Single image with Deep SESR (requires full install)
+python -m dive_color_corrector image input.jpg output.jpg --sesr
+
+# Video
+python -m dive_color_corrector video input.mp4 output.mp4
+
+# Batch process directory
+python -m dive_color_corrector batch ./raw ./corrected
 ```
 
 ## Examples
 
-### Sample Images
+### Before / After
 ![Example](./examples/example.jpg)
 
 ### Sample Video
 [![Video](https://img.youtube.com/vi/NEpl41-LMBs/0.jpg)](https://www.youtube.com/watch?v=NEpl41-LMBs)
 
+## Algorithm
+
+Two correction methods available:
+
+1. **Hue-shift (default)**: Fast algorithm that shifts hue to restore red channel. Best for most underwater photos.
+
+2. **Deep SESR** (`--sesr` flag): Neural network trained on underwater images. Provides super-resolution (2x) and enhanced color correction. Slower but can produce better results for challenging images.
+
 ## Development
 
-### Prerequisites
-
-- Python 3.11 or higher
-- [uv](https://github.com/astral-sh/uv) for dependency management
-- Git
-
-### Development Setup
-
-1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/dive-color-corrector.git
-cd dive-color-corrector
+# Install dev dependencies
+uv pip install -e ".[dev,gui,sesr]"
+
+# Run tests
+pytest tests/
+
+# Run linting
+ruff check src tests
+mypy src
 ```
-
-2. Create and activate a virtual environment:
-```bash
-uv venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-```
-
-3. Install development dependencies:
-```bash
-uv pip install -e ".[gui]"
-```
-
-### Building Executables
-
-The project uses PyInstaller to create standalone executables. To build locally:
-
-```bash
-uv pip install pyinstaller pillow
-pyinstaller --name "Dive Color Corrector" \
-            --windowed \
-            --icon "logo/logo.png" \
-            --add-data "src/dive_color_corrector/gui/assets:dive_color_corrector/gui/assets" \
-            --clean \
-            --noconfirm \
-            src/dive_color_corrector/__main__.py
-```
-
-The executable will be created in the `dist` directory.
-
-## Project Structure
-
-```
-dive-color-corrector/
-├── src/
-│   └── dive_color_corrector/
-│       ├── core/           # Core color correction logic
-│       ├── gui/            # GUI components
-│       │   └── assets/     # GUI assets (images, icons)
-│       ├── __init__.py
-│       └── __main__.py     # Application entry point
-├── tests/                  # Test suite
-├── examples/               # Example images
-├── logo/                   # Application logo
-├── pyproject.toml         # Project configuration
-└── README.md
-```
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Commit your changes
-4. Push to the branch
-5. Create a Pull Request
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+MIT License - see [LICENSE](LICENSE)
 
 ## Acknowledgments
 
-- Thanks to all contributors who have helped shape this project especially [bornfree](https://github.com/bornfree)
-- Special thanks to the open-source community for the tools and libraries used in this project
-- Inspired by the algorithm at [nikolajbech/underwater-image-color-correction](https://github.com/nikolajbech/underwater-image-color-correction)
-
-## Share
-
-If this project was useful, please consider [sharing the word](https://twitter.com/intent/tweet?url=https://github.com/bornfree/dive-color-correction&text=Correct%20your%20dive%20footage%20with%20Python%20#scuba%20#gopro%20#python%20#opencv) on Twitter.
+- Algorithm inspired by [nikolajbech/underwater-image-color-correction](https://github.com/nikolajbech/underwater-image-color-correction)
+- Thanks to [bornfree](https://github.com/bornfree) and all contributors

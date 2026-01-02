@@ -1,65 +1,66 @@
 """Image processing operations."""
 
+from pathlib import Path
+from typing import Any
+
 import cv2
 import numpy as np
 from PIL import Image
 
 from dive_color_corrector.core.correction import correct as correct_simple
-from dive_color_corrector.core.models.sesr import DeepSESR
+from dive_color_corrector.core.models.sesr import SESR_AVAILABLE, DeepSESR, SESRNotAvailableError
 from dive_color_corrector.core.utils.constants import PREVIEW_HEIGHT, PREVIEW_WIDTH
+
+__all__ = ["SESR_AVAILABLE", "correct", "correct_image"]
+
+JPEG_EXTENSIONS = {".jpg", ".jpeg"}
+PNG_EXTENSIONS = {".png"}
+DEFAULT_JPEG_QUALITY = 95
 
 
 def correct(mat: np.ndarray, use_deep: bool = False) -> np.ndarray:
-    """Apply color correction to matrix.
-
-    Args:
-        mat: Input RGB matrix
-        use_deep: Whether to use the deep learning model instead of simple correction
-
-    Returns:
-        Corrected BGR matrix
-    """
     if use_deep:
-        # Initialize Deep SESR model
+        if not SESR_AVAILABLE:
+            raise SESRNotAvailableError()
         model = DeepSESR()
+        return model.enhance(mat)
+    return correct_simple(mat)
 
-        # Enhance the image
-        enhanced = model.enhance(mat)
 
-        return enhanced
-    else:
-        # Use simple correction
-        return correct_simple(mat)
+def _get_save_kwargs(image: Image.Image, output_path: str) -> dict[str, Any]:
+    kwargs: dict[str, Any] = {}
+    ext = Path(output_path).suffix.lower()
+
+    if exif := image.info.get("exif"):
+        kwargs["exif"] = exif
+
+    if icc := image.info.get("icc_profile"):
+        kwargs["icc_profile"] = icc
+
+    if ext in JPEG_EXTENSIONS:
+        kwargs["quality"] = DEFAULT_JPEG_QUALITY
+        kwargs["subsampling"] = "4:4:4"
+    elif ext in PNG_EXTENSIONS:
+        kwargs["compress_level"] = 6
+
+    return kwargs
 
 
 def correct_image(input_path: str, output_path: str | None, use_deep: bool = False) -> bytes:
-    """Correct colors in a single image.
-
-    Args:
-        input_path: Path to input image
-        output_path: Path to save corrected image
-        use_deep: Whether to use the deep learning model instead of simple correction
-
-    Returns:
-        Preview image data as bytes
-    """
-    # Use PIL to read image and preserve EXIF data
-    exif_data = None
     with Image.open(input_path) as image:
-        exif_data = image.info.get("exif")
+        original_info = image.info.copy()
         if image.mode != "RGB":
             image = image.convert("RGB")
+        image.info = original_info
         mat = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
 
     rgb_mat = cv2.cvtColor(mat, cv2.COLOR_BGR2RGB)
     corrected_mat = correct(rgb_mat, use_deep=use_deep)
 
     if output_path:
-        # Save with EXIF data preserved
         output_image = Image.fromarray(cv2.cvtColor(corrected_mat, cv2.COLOR_BGR2RGB))
-        save_kwargs = {}
-        if exif_data:
-            save_kwargs["exif"] = exif_data
+        with Image.open(input_path) as original:
+            save_kwargs = _get_save_kwargs(original, output_path)
         output_image.save(output_path, **save_kwargs)
 
     preview = mat.copy()

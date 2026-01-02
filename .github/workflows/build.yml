@@ -5,21 +5,34 @@ on:
     branches: [ main ]
     tags:
       - 'v*'
-  workflow_dispatch:  # Manual trigger
+  workflow_dispatch:
 
 jobs:
   build:
-    name: Build Package
+    name: Build ${{ matrix.variant }} (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest]  # Removed macos-latest due to TensorFlow compatibility issues
+        os: [ubuntu-latest, windows-latest]
         python-version: ["3.11"]
+        variant: [full, lite]
         include:
           - os: windows-latest
+            variant: full
             executable_name: "Dive Color Corrector.exe"
+            artifact_suffix: "-full"
+          - os: windows-latest
+            variant: lite
+            executable_name: "Dive Color Corrector Lite.exe"
+            artifact_suffix: "-lite"
           - os: ubuntu-latest
+            variant: full
             executable_name: "Dive Color Corrector"
+            artifact_suffix: "-full"
+          - os: ubuntu-latest
+            variant: lite
+            executable_name: "Dive Color Corrector Lite"
+            artifact_suffix: "-lite"
 
     steps:
       - uses: actions/checkout@v4
@@ -37,24 +50,41 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y binutils
 
-      - name: Install dependencies
+      - name: Install dependencies (Full)
+        if: matrix.variant == 'full'
+        run: |
+          uv pip install -e ".[gui,sesr]"
+          uv pip install pyinstaller pillow
+
+      - name: Install dependencies (Lite)
+        if: matrix.variant == 'lite'
         run: |
           uv pip install -e ".[gui]"
           uv pip install pyinstaller pillow
 
-      - name: Build executable (Windows)
-        if: matrix.os == 'windows-latest'
+      - name: Build executable (Windows Full)
+        if: matrix.os == 'windows-latest' && matrix.variant == 'full'
         run: |
-          uv run pyinstaller --name "Dive Color Corrector" --windowed --onefile --icon "src/dive_color_corrector/gui/assets/logo.png" --add-data "src/dive_color_corrector/gui/assets;dive_color_corrector/gui/assets" --clean --noconfirm src/dive_color_corrector/__main__.py
+          uv run pyinstaller --name "Dive Color Corrector" --windowed --onefile --icon "src/dive_color_corrector/gui/assets/logo.png" --add-data "src/dive_color_corrector/gui/assets;dive_color_corrector/gui/assets" --add-data "src/dive_color_corrector/models/deep_sesr_2x.onnx;dive_color_corrector/models" --clean --noconfirm src/dive_color_corrector/__main__.py
 
-      - name: Build executable (Unix)
-        if: matrix.os != 'windows-latest'
+      - name: Build executable (Windows Lite)
+        if: matrix.os == 'windows-latest' && matrix.variant == 'lite'
         run: |
-          uv run pyinstaller --name "Dive Color Corrector" --windowed --onefile --icon "src/dive_color_corrector/gui/assets/logo.png" --add-data "src/dive_color_corrector/gui/assets:dive_color_corrector/gui/assets" --clean --noconfirm src/dive_color_corrector/__main__.py
+          uv run pyinstaller --name "Dive Color Corrector Lite" --windowed --onefile --icon "src/dive_color_corrector/gui/assets/logo.png" --add-data "src/dive_color_corrector/gui/assets;dive_color_corrector/gui/assets" --clean --noconfirm src/dive_color_corrector/__main__.py
+
+      - name: Build executable (Unix Full)
+        if: matrix.os != 'windows-latest' && matrix.variant == 'full'
+        run: |
+          uv run pyinstaller --name "Dive Color Corrector" --windowed --onefile --icon "src/dive_color_corrector/gui/assets/logo.png" --add-data "src/dive_color_corrector/gui/assets:dive_color_corrector/gui/assets" --add-data "src/dive_color_corrector/models/deep_sesr_2x.onnx:dive_color_corrector/models" --clean --noconfirm src/dive_color_corrector/__main__.py
+
+      - name: Build executable (Unix Lite)
+        if: matrix.os != 'windows-latest' && matrix.variant == 'lite'
+        run: |
+          uv run pyinstaller --name "Dive Color Corrector Lite" --windowed --onefile --icon "src/dive_color_corrector/gui/assets/logo.png" --add-data "src/dive_color_corrector/gui/assets:dive_color_corrector/gui/assets" --clean --noconfirm src/dive_color_corrector/__main__.py
 
       - name: List files (Windows)
         if: matrix.os == 'windows-latest'
-        run: Get-ChildItem -Path dist -Recurse -File | Select-Object FullName
+        run: Get-ChildItem -Path dist -Recurse -File | Select-Object FullName, Length
 
       - name: List files (Unix)
         if: matrix.os != 'windows-latest'
@@ -63,8 +93,8 @@ jobs:
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: dive-color-corrector-${{ matrix.os }}
-          path: ${{ matrix.os == 'windows-latest' && 'dist/Dive Color Corrector.exe' || 'dist/Dive Color Corrector' }}
+          name: dive-color-corrector-${{ matrix.os }}${{ matrix.artifact_suffix }}
+          path: dist/${{ matrix.executable_name }}
           retention-days: 5
           if-no-files-found: error
           compression-level: 9

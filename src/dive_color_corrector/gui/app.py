@@ -4,6 +4,7 @@ from pathlib import Path
 
 import PySimpleGUI as sg  # noqa: N813
 
+from dive_color_corrector.core.models import SESR_AVAILABLE
 from dive_color_corrector.core.processing.image import correct_image
 from dive_color_corrector.core.processing.video import analyze_video, process_video
 from dive_color_corrector.core.schemas import VideoData
@@ -58,10 +59,12 @@ def create_window() -> sg.Window:
         [sg.Text("Options", font=("Helvetica", 12, "bold"))],
         [
             sg.Checkbox(
-                "Use Deep Learning (SESR)",
+                "Use Deep Learning (SESR)" + ("" if SESR_AVAILABLE else " [Not Available]"),
                 key="-USE_DEEP-",
                 default=False,
-                tooltip="Neural network enhancement - slower but often better quality",
+                disabled=not SESR_AVAILABLE,
+                tooltip="Neural network enhancement - slower but often better quality"
+                + ("" if SESR_AVAILABLE else " (requires onnxruntime)"),
             )
         ],
         [sg.HSeparator()],

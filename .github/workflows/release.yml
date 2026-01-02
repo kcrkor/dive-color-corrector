@@ -6,7 +6,11 @@ on:
       - 'v*'
 
 jobs:
+  test:
+    uses: ./.github/workflows/ci.yml
+
   build:
+    needs: test
     uses: ./.github/workflows/build.yml
 
   publish-pypi:
@@ -29,3 +33,60 @@ jobs:
 
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
+
+  create-release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Prepare release assets
+        run: |
+          mkdir -p release-assets
+          # Rename artifacts for clarity
+          for dir in artifacts/*/; do
+            name=$(basename "$dir")
+            case "$name" in
+              *windows*full*)
+                cp "$dir"/*.exe "release-assets/Dive-Color-Corrector-${GITHUB_REF_NAME}-windows.exe" 2>/dev/null || true
+                ;;
+              *windows*lite*)
+                cp "$dir"/*.exe "release-assets/Dive-Color-Corrector-Lite-${GITHUB_REF_NAME}-windows.exe" 2>/dev/null || true
+                ;;
+              *ubuntu*full*)
+                cp "$dir"/* "release-assets/Dive-Color-Corrector-${GITHUB_REF_NAME}-linux" 2>/dev/null || true
+                chmod +x "release-assets/Dive-Color-Corrector-${GITHUB_REF_NAME}-linux" 2>/dev/null || true
+                ;;
+              *ubuntu*lite*)
+                cp "$dir"/* "release-assets/Dive-Color-Corrector-Lite-${GITHUB_REF_NAME}-linux" 2>/dev/null || true
+                chmod +x "release-assets/Dive-Color-Corrector-Lite-${GITHUB_REF_NAME}-linux" 2>/dev/null || true
+                ;;
+            esac
+          done
+          ls -la release-assets/
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: release-assets/*
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          body: |
+            ## Downloads
+
+            | Platform | Full (with SESR) | Lite |
+            |----------|------------------|------|
+            | Windows | `Dive-Color-Corrector-${{ github.ref_name }}-windows.exe` | `Dive-Color-Corrector-Lite-${{ github.ref_name }}-windows.exe` |
+            | Linux | `Dive-Color-Corrector-${{ github.ref_name }}-linux` | `Dive-Color-Corrector-Lite-${{ github.ref_name }}-linux` |
+
+            **Full version**: Includes Deep SESR neural network for enhanced correction (~100MB)
+            **Lite version**: Fast hue-shift algorithm only, smaller download (~30MB)

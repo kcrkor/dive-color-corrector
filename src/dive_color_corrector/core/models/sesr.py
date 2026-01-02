@@ -1,58 +1,89 @@
-"""Deep SESR model for underwater image enhancement.
+"""Deep SESR model for underwater image enhancement."""
 
-Based on: https://github.com/IRVLab/Deep-SESR
-Paper: https://arxiv.org/pdf/2002.01155.pdf
-
-Model outputs 3 tensors:
-- output[0]: Enhanced image at input resolution (320x240)
-- output[1]: Super-resolved image at 2x resolution (640x480)
-- output[2]: Saliency map
-"""
+from __future__ import annotations
 
 from pathlib import Path
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
 import cv2
 import numpy as np
-import tensorflow as tf
+
+if TYPE_CHECKING:
+    import onnxruntime
+
+try:
+    import onnxruntime as _ort
+
+    SESR_AVAILABLE = True
+except ImportError:
+    _ort = None
+    SESR_AVAILABLE = False
 
 LR_SIZE = (240, 320)
 HR_SIZE = (480, 640)
 
 
+class SESRNotAvailableError(Exception):
+    """Raised when SESR is requested but onnxruntime is not installed."""
+
+    def __init__(self) -> None:
+        super().__init__(
+            "Deep SESR requires onnxruntime. Install with: pip install dive_color_corrector[sesr]"
+        )
+
+
 class DeepSESR:
+    """Deep SESR model for underwater image enhancement using ONNX Runtime."""
+
     def __init__(self, model_path: str | Path | None = None):
+        if not SESR_AVAILABLE:
+            raise SESRNotAvailableError()
+
         if model_path is None:
             package_root = Path(__file__).parent.parent.parent
-            model_path = package_root / "models" / "deep_sesr_2x_1d.keras"
+            model_path = package_root / "models" / "deep_sesr_2x.onnx"
         else:
             model_path = Path(model_path)
 
         if not model_path.exists():
             raise FileNotFoundError(f"Model file not found at {model_path}")
 
-        self.model = tf.keras.models.load_model(model_path)
+        self.session: onnxruntime.InferenceSession = _ort.InferenceSession(
+            str(model_path), providers=["CPUExecutionProvider"]
+        )
+        self.input_name = self.session.get_inputs()[0].name
         self.input_size = LR_SIZE
         self.output_size = HR_SIZE
 
     def preprocess_image(self, img: np.ndarray) -> np.ndarray:
+        """Preprocess image for model input."""
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         img = cv2.resize(img, (self.input_size[1], self.input_size[0]))
         img = (img.astype(np.float32) / 127.5) - 1.0
         return np.expand_dims(img, axis=0)
 
     def postprocess_image(self, img: np.ndarray) -> np.ndarray:
+        """Postprocess model output to BGR image."""
         img = np.squeeze(img, axis=0)
         img = (img + 1.0) * 0.5
         img = np.clip(img * 255, 0, 255).astype(np.uint8)
         return cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
 
     def enhance(self, img: np.ndarray, use_superres: bool = True) -> np.ndarray:
+        """Enhance an underwater image using Deep SESR.
+
+        Args:
+            img: Input BGR image
+            use_superres: Whether to use 2x super-resolution output
+
+        Returns:
+            Enhanced BGR image
+        """
         original_size = img.shape[:2]
         x = self.preprocess_image(img)
-        y = self.model.predict(x, verbose=0)
+        outputs = self.session.run(None, {self.input_name: x})
 
-        enhanced = (y[1] if use_superres else y[0]) if isinstance(y, list) and len(y) >= 2 else y
+        enhanced = outputs[1] if use_superres and len(outputs) >= 2 else outputs[0]
 
         enhanced = self.postprocess_image(cast(np.ndarray, enhanced))
 

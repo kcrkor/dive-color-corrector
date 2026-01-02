@@ -9,15 +9,15 @@ from dive_color_corrector.core.models.sesr import DeepSESR
 def test_model_initialization() -> None:
     model = DeepSESR()
     assert model.input_size == (240, 320)
-    assert model.model is not None
+    assert model.session is not None
 
-    custom_path = Path("src/dive_color_corrector/models/deep_sesr_2x_1d.keras")
+    custom_path = Path("src/dive_color_corrector/models/deep_sesr_2x.onnx")
     model = DeepSESR(custom_path)
     assert model.input_size == (240, 320)
-    assert model.model is not None
+    assert model.session is not None
 
     with pytest.raises(FileNotFoundError):
-        DeepSESR("non_existent_model.keras")
+        DeepSESR("non_existent_model.onnx")
 
 
 def test_preprocess_image() -> None:

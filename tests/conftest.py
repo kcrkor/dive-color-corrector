@@ -15,6 +15,11 @@ def underwater_image(fixtures_dir: Path) -> Path:
 
 
 @pytest.fixture
+def gopro_image(fixtures_dir: Path) -> Path:
+    return fixtures_dir / "gopro_underwater.jpg"
+
+
+@pytest.fixture
 def random_rgb_image() -> np.ndarray:
     return np.random.randint(0, 255, (480, 640, 3), dtype=np.uint8)
 
