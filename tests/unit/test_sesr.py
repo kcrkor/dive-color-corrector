@@ -8,7 +8,7 @@ import pytest
 from dive_color_corrector.core.models.sesr import DeepSESR
 
 
-def test_model_initialization():
+def test_model_initialization() -> None:
     """Test model initialization with default and custom paths."""
     # Test with default path
     model = DeepSESR()
@@ -26,7 +26,7 @@ def test_model_initialization():
         DeepSESR("non_existent_model.keras")
 
 
-def test_preprocess_image():
+def test_preprocess_image() -> None:
     """Test image preprocessing."""
     model = DeepSESR()
 
@@ -42,7 +42,7 @@ def test_preprocess_image():
     assert np.all(processed >= 0) and np.all(processed <= 1)
 
 
-def test_postprocess_image():
+def test_postprocess_image() -> None:
     """Test image postprocessing."""
     model = DeepSESR()
 
@@ -58,7 +58,8 @@ def test_postprocess_image():
     assert np.all(processed >= 0) and np.all(processed <= 255)
 
 
-def test_enhance():
+@pytest.mark.slow
+def test_enhance() -> None:
     """Test image enhancement pipeline."""
     model = DeepSESR()
 

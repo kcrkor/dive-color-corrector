@@ -5,7 +5,7 @@ import math
 import numpy as np
 
 
-def hue_shift_red(mat, h):
+def hue_shift_red(mat: np.ndarray, h: float) -> np.ndarray:
     """Apply hue shift to red channel.
 
     Args:

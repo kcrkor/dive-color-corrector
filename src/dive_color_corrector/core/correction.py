@@ -18,7 +18,7 @@ BLUE_MAGIC_VALUE = 1.2
 SAMPLE_SECONDS = 2  # Extracts color correction from every N seconds
 
 
-def hue_shift_red(mat, h):
+def hue_shift_red(mat: np.ndarray, h: float) -> np.ndarray:
     """Apply hue shift to red channel."""
     u = math.cos(h * math.pi / 180)
     w = math.sin(h * math.pi / 180)
@@ -30,7 +30,7 @@ def hue_shift_red(mat, h):
     return np.dstack([r, g, b])
 
 
-def normalizing_interval(array):
+def normalizing_interval(array: np.ndarray) -> tuple[float, float]:
     """Find the largest interval between consecutive values."""
     high = 255
     low = 0
@@ -46,7 +46,7 @@ def normalizing_interval(array):
     return (low, high)
 
 
-def apply_filter(mat, filt):
+def apply_filter(mat: np.ndarray, filt: np.ndarray) -> np.ndarray:
     """Apply color correction filter to matrix."""
     r = mat[..., 0]
     g = mat[..., 1]
@@ -62,7 +62,7 @@ def apply_filter(mat, filt):
     return filtered_mat
 
 
-def get_filter_matrix(mat):
+def get_filter_matrix(mat: np.ndarray) -> np.ndarray:
     """Calculate color correction filter matrix."""
     mat = cv2.resize(mat, (256, 256))
 
@@ -149,7 +149,7 @@ def get_filter_matrix(mat):
     )
 
 
-def correct(mat):
+def correct(mat: np.ndarray) -> np.ndarray:
     """Apply color correction to matrix."""
     original_mat = mat.copy()
     filter_matrix = get_filter_matrix(mat)

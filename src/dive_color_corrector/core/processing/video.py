@@ -1,6 +1,8 @@
 """Video processing operations."""
 
 import math
+from collections.abc import Generator
+from typing import Any
 
 import cv2
 import numpy as np
@@ -13,9 +15,12 @@ from dive_color_corrector.core.color.filter import (
 )
 from dive_color_corrector.core.processing.image import correct
 from dive_color_corrector.core.utils.constants import VIDEO_CODEC
+from dive_color_corrector.logging import get_logger
+
+logger = get_logger()
 
 
-def analyze_video(video_path, output_path):
+def analyze_video(video_path: str, output_path: str) -> Generator[int | dict[str, Any], None, None]:
     """Analyze video for color correction by sampling filter matrices.
 
     Args:
@@ -40,7 +45,7 @@ def analyze_video(video_path, output_path):
     filter_matrices = []
     count = 0
 
-    print("Analyzing...")
+    logger.info(f"Analyzing video: {video_path}")
     while cap.isOpened():
         ret, frame = cap.read()
         if not ret:
@@ -54,7 +59,8 @@ def analyze_video(video_path, output_path):
             continue
 
         count += 1
-        print(f"{count} frames", end="\r")
+        if count % 100 == 0:
+            logger.debug(f"Analyzed {count} frames")
 
         # Sample filter matrix every N seconds
         if count % (fps * SAMPLE_SECONDS) == 0:
@@ -67,7 +73,7 @@ def analyze_video(video_path, output_path):
     cap.release()
 
     # Convert to numpy arrays
-    filter_matrices = np.array(filter_matrices, dtype=np.float32)
+    filter_matrices_arr = np.array(filter_matrices, dtype=np.float32)
 
     yield {
         "input_video_path": video_path,
@@ -77,11 +83,13 @@ def analyze_video(video_path, output_path):
         "width": width,
         "height": height,
         "filter_indices": filter_matrix_indices,
-        "filter_matrices": filter_matrices,
+        "filter_matrices": filter_matrices_arr,
     }
 
 
-def process_video(video_data, yield_preview=False, use_deep=False):
+def process_video(
+    video_data: dict[str, Any], yield_preview: bool = False, use_deep: bool = False
+) -> Generator[tuple[float, bytes | None], None, None]:
     """Process video frames with color correction.
 
     Args:
@@ -103,19 +111,20 @@ def process_video(video_data, yield_preview=False, use_deep=False):
 
     # Initialize VideoWriter
     fourcc = cv2.VideoWriter_fourcc(*VIDEO_CODEC)
+
     out = cv2.VideoWriter(video_data["output_video_path"], fourcc, fps, (frame_width, frame_height))
 
     # Precompute interpolated filter matrices for non-deep mode
     interpolated_matrices = None
     if not use_deep and len(video_data["filter_matrices"]) > 0:
-        print("Precomputing filter matrices...")
+        logger.info("Precomputing filter matrices...")
         interpolated_matrices = precompute_filter_matrices(
             frame_count,
             video_data["filter_indices"],
             video_data["filter_matrices"],
         )
 
-    print("Processing...")
+    logger.info("Processing video...")
     count = 0
     while cap.isOpened():
         ret, frame = cap.read()
@@ -133,7 +142,8 @@ def process_video(video_data, yield_preview=False, use_deep=False):
         frame_idx = count
         count += 1
         percent = 100.0 * count / frame_count
-        print(f"{percent:.2f}%", end="\r")
+        if count % 100 == 0:
+            logger.debug(f"Processed {percent:.2f}%")
 
         # Convert to RGB and apply correction
         rgb_mat = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)

@@ -29,7 +29,7 @@
 			"ppa": "false"
 		}
 	},
-	
+
 	// 5. Configure tool-specific properties.
 	"customizations": {
 		// Configure properties specific to VS Code.
@@ -54,12 +54,12 @@
 			]
 		}
 	},
-	
+
 	// 6. Set `remoteUser` to `root` to connect as root instead. More info: https://aka.ms/vscode-remote/containers/non-root.
 	"remoteUser": "vscode",
 
 	// the following commands are related to container lifecylce. More info: https://containers.dev/implementors/json_reference/#lifecycle-scripts
-	
+
 	// 7. Use 'initializeCommand' to run commands ON THE HOST before container is created or started.
 	// "initializeCommand": "",
 
@@ -67,7 +67,7 @@
 	// for the nvida containers, sh points to sh-wrap. We want it to point to dash
 	// https://wiki.debian.org/Shell
 	"onCreateCommand": "sudo ln -sf /usr/bin/dash /usr/bin/sh",
-	
+
 	// 9. Use 'updateContentCommand' to run commands if the root filetree have any changes, during container creation.
 	// "updateContentCommand": "",
 
@@ -76,8 +76,8 @@
 
 	// 11. Use 'postStartCommand' to run a command each time the container starts successfully.
 	// "postStartCommand": "",
-	
-	// 12. Use 'postAttachCommand' to run a command each time a tool attaches to the container successfully. 
+
+	// 12. Use 'postAttachCommand' to run a command each time a tool attaches to the container successfully.
 	// "postAttachCommand": "",
 
 	// Features to add to the dev container. More info: https://containers.dev/features.

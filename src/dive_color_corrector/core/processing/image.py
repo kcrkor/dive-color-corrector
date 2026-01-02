@@ -9,7 +9,7 @@ from dive_color_corrector.core.models.sesr import DeepSESR
 from dive_color_corrector.core.utils.constants import PREVIEW_HEIGHT, PREVIEW_WIDTH
 
 
-def correct(mat, use_deep=False):
+def correct(mat: np.ndarray, use_deep: bool = False) -> np.ndarray:
     """Apply color correction to matrix.
 
     Args:
@@ -32,7 +32,7 @@ def correct(mat, use_deep=False):
         return correct_simple(mat)
 
 
-def correct_image(input_path, output_path, use_deep=False):
+def correct_image(input_path: str, output_path: str | None, use_deep: bool = False) -> bytes:
     """Correct colors in a single image.
 
     Args:
@@ -68,4 +68,5 @@ def correct_image(input_path, output_path, use_deep=False):
 
     preview = cv2.resize(preview, (PREVIEW_WIDTH, PREVIEW_HEIGHT))
 
-    return cv2.imencode(".png", preview)[1].tobytes()
+    _, encoded = cv2.imencode(".png", preview)
+    return bytes(encoded.tobytes())

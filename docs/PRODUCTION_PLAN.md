@@ -1,14 +1,14 @@
 # Dive Color Corrector - Production Readiness Plan
 
-**Created:** 2026-01-01  
-**Status:** Planning  
+**Created:** 2026-01-01
+**Status:** Planning
 **Author:** AI Assistant
 
 ## Executive Summary
 
 Transform the current MVP into a production-ready application with proper structure, comprehensive testing, complete documentation, and developer tooling.
 
-**Current State:** ~1,155 LOC Python, functional but needs polish  
+**Current State:** ~1,155 LOC Python, functional but needs polish
 **Target State:** Production-ready with CI/CD, full test coverage, professional docs
 
 ---
@@ -355,30 +355,30 @@ def setup_logging(
     format_string: Optional[str] = None,
 ) -> logging.Logger:
     """Configure logging for the application.
-    
+
     Args:
         level: Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
         format_string: Custom format string for log messages
-        
+
     Returns:
         Configured logger instance
     """
     logger = logging.getLogger("dive_color_corrector")
     logger.setLevel(getattr(logging, level.upper()))
-    
+
     # Clear existing handlers
     logger.handlers.clear()
-    
+
     handler = logging.StreamHandler(sys.stdout)
     handler.setLevel(getattr(logging, level.upper()))
-    
+
     if format_string is None:
         format_string = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-    
+
     formatter = logging.Formatter(format_string)
     handler.setFormatter(formatter)
     logger.addHandler(handler)
-    
+
     return logger
 
 
@@ -622,18 +622,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Install uv
         uses: astral-sh/setup-uv@v5
         with:
           python-version: "3.11"
-          
+
       - name: Install dependencies
         run: uv pip install ruff mypy
-        
+
       - name: Run Ruff
         run: ruff check src tests
-        
+
       - name: Run Ruff format check
         run: ruff format --check src tests
 
@@ -648,22 +648,22 @@ jobs:
           # TensorFlow issues on some combinations
           - os: windows-latest
             python-version: "3.12"
-            
+
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Install uv
         uses: astral-sh/setup-uv@v5
         with:
           python-version: ${{ matrix.python-version }}
           enable-cache: true
-          
+
       - name: Install dependencies
         run: uv pip install -e ".[dev,gui]"
-        
+
       - name: Run tests
         run: pytest tests/ --cov=src --cov-report=xml -v
-        
+
       - name: Upload coverage
         uses: codecov/codecov-action@v3
         if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.11'
@@ -684,42 +684,42 @@ on:
 jobs:
   build:
     uses: ./.github/workflows/build.yml
-    
+
   publish-pypi:
     needs: build
     runs-on: ubuntu-latest
     environment: pypi
     permissions:
       id-token: write
-      
+
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Install uv
         uses: astral-sh/setup-uv@v5
         with:
           python-version: "3.11"
-          
+
       - name: Build package
         run: uv build
-        
+
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
-        
+
   create-release:
     needs: [build, publish-pypi]
     runs-on: ubuntu-latest
     permissions:
       contents: write
-      
+
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
           path: artifacts
-          
+
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
@@ -766,50 +766,50 @@ jobs:
 
 ### Week 1: Critical Fixes & Cleanup
 
-- [ ] Add `pillow>=10.0.0` to pyproject.toml
-- [ ] Delete empty `output/` directory
-- [ ] Delete generated `*.spec` files (keep template)
-- [ ] Create `packaging/` directory structure
-- [ ] Move `setup.py` to `packaging/macos/`
-- [ ] Move `inspect_model.py` to `scripts/`
-- [ ] Delete `hatch.toml` (consolidate to pyproject.toml)
-- [ ] Delete `requirements.txt`
-- [ ] Update `.gitignore`
-- [ ] Create `CHANGELOG.md`
-- [ ] Create `CONTRIBUTING.md`
+- [x] Add `pillow>=10.0.0` to pyproject.toml
+- [x] Delete empty `output/` directory
+- [x] Delete generated `*.spec` files (keep template)
+- [x] Create `packaging/` directory structure
+- [x] Move `setup.py` to `packaging/macos/`
+- [x] Move `inspect_model.py` to `scripts/`
+- [x] Delete `hatch.toml` (consolidate to pyproject.toml)
+- [x] Delete `requirements.txt`
+- [x] Update `.gitignore`
+- [x] Create `CHANGELOG.md`
+- [x] Create `CONTRIBUTING.md`
 
 ### Week 2: Code Quality
 
-- [ ] Create `src/dive_color_corrector/core/exceptions.py`
-- [ ] Create `src/dive_color_corrector/logging.py`
-- [ ] Replace print statements with logging
-- [ ] Create `.pre-commit-config.yaml`
-- [ ] Run `pre-commit install`
-- [ ] Fix any linting issues
-- [ ] Reorganize tests directory structure
-- [ ] Create `tests/conftest.py`
-- [ ] Add unit tests for filter module
-- [ ] Add unit tests for hue module
-- [ ] Add unit tests for CLI
+- [x] Create `src/dive_color_corrector/core/exceptions.py`
+- [x] Create `src/dive_color_corrector/logging.py`
+- [x] Replace print statements with logging
+- [x] Create `.pre-commit-config.yaml`
+- [x] Run `pre-commit install`
+- [x] Fix any linting issues
+- [x] Reorganize tests directory structure
+- [x] Create `tests/conftest.py`
+- [x] Add unit tests for filter module
+- [x] Add unit tests for hue module
+- [x] Add unit tests for CLI
 
 ### Week 3: Documentation & CI
 
 - [ ] Enhance README.md with badges
-- [ ] Add installation instructions for pip/uv
+- [x] Add installation instructions for pip/uv
 - [ ] Add usage examples with screenshots
-- [ ] Create `.github/workflows/ci.yml`
-- [ ] Create `.github/workflows/release.yml`
+- [x] Create `.github/workflows/ci.yml`
+- [x] Create `.github/workflows/release.yml`
 - [ ] Set up Codecov integration
 - [ ] Add integration tests
 - [ ] Achieve 80%+ test coverage
 
 ### Week 4: Polish & Release
 
-- [ ] Add mypy type checking
-- [ ] Fix all type errors
+- [x] Add mypy type checking
+- [x] Fix all type errors
 - [ ] Performance optimization for DeepSESR
 - [ ] GUI improvements (optional)
-- [ ] CLI improvements (optional)
+- [x] CLI improvements (--verbose flag added)
 - [ ] Final testing on Windows + Linux
 - [ ] Tag v1.3.0 release
 - [ ] Publish to PyPI (optional)
@@ -820,9 +820,9 @@ jobs:
 
 | Metric | Current | Target |
 |--------|---------|--------|
-| Test coverage | ~10% | 80%+ |
-| Linting errors | Unknown | 0 |
-| Type errors | Unknown | 0 |
+| Test coverage | 39% | 80%+ |
+| Linting errors | 0 | 0 |
+| Type errors | 0 | 0 |
 | Documentation | Basic README | Full docs |
 | CI/CD | Build only | Lint + Test + Build + Release |
 | Root files | 15+ loose | Organized |

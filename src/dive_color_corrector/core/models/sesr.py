@@ -1,6 +1,7 @@
 """Deep SESR model for underwater image enhancement."""
 
 from pathlib import Path
+from typing import cast
 
 import cv2
 import numpy as np
@@ -102,10 +103,10 @@ class DeepSESR:
         enhanced = y[0] if isinstance(y, list) else y
 
         # Postprocess
-        enhanced = self.postprocess_image(enhanced)
+        enhanced = self.postprocess_image(cast(np.ndarray, enhanced))
 
         # Resize back to original size
         if original_size != self.input_size:
             enhanced = cv2.resize(enhanced, (original_size[1], original_size[0]))
 
-        return enhanced
+        return cast(np.ndarray, enhanced)

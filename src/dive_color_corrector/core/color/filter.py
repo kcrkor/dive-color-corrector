@@ -12,7 +12,7 @@ from dive_color_corrector.core.color.constants import (
 from dive_color_corrector.core.color.hue import hue_shift_red
 
 
-def normalizing_interval(array):
+def normalizing_interval(array: np.ndarray | list[float]) -> tuple[float, float]:
     """Find the largest interval between consecutive values.
 
     Args:
@@ -21,9 +21,9 @@ def normalizing_interval(array):
     Returns:
         Tuple of (low, high) values defining the interval
     """
-    high = 255
-    low = 0
-    max_dist = 0
+    high: float = 255.0
+    low: float = 0.0
+    max_dist: float = 0.0
 
     for i in range(1, len(array)):
         dist = array[i] - array[i - 1]
@@ -35,7 +35,7 @@ def normalizing_interval(array):
     return (low, high)
 
 
-def apply_filter(mat, filt):
+def apply_filter(mat: np.ndarray, filt: np.ndarray | list[float]) -> np.ndarray:
     """Apply color correction filter to matrix.
 
     Args:
@@ -56,7 +56,7 @@ def apply_filter(mat, filt):
     return np.clip(filtered_mat, 0, 255).astype(np.uint8)
 
 
-def get_filter_matrix(mat):
+def get_filter_matrix(mat: np.ndarray) -> np.ndarray:
     """Calculate color correction filter matrix.
 
     Args:
@@ -150,7 +150,9 @@ def get_filter_matrix(mat):
     )
 
 
-def precompute_filter_matrices(frame_count, filter_indices, filter_matrices):
+def precompute_filter_matrices(
+    frame_count: int, filter_indices: np.ndarray | list[int], filter_matrices: np.ndarray
+) -> np.ndarray:
     """Precompute interpolated filter matrices for all frames.
 
     Args:

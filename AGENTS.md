@@ -1,7 +1,7 @@
 # DIVE COLOR CORRECTOR - KNOWLEDGE BASE
 
-**Generated:** 2026-01-01  
-**Commit:** 6c1561d  
+**Generated:** 2026-01-01
+**Commit:** 38c76e2
 **Branch:** main
 
 ## OVERVIEW
@@ -17,14 +17,21 @@ dive-color-corrector/
 │   │   ├── color/               # Hue shift, filter matrix ops
 │   │   ├── models/              # Deep SESR wrapper (Keras)
 │   │   ├── processing/          # Image/video orchestration
-│   │   └── correction.py        # Legacy facade (imports from processing/)
+│   │   ├── correction.py        # Legacy facade
+│   │   └── exceptions.py        # Custom exceptions
 │   ├── gui/                     # PySimpleGUI interface
 │   ├── cli.py                   # CLI entry point
-│   └── __main__.py              # Application entry (→ GUI if no args)
-├── tests/samples/               # Test images + helper scripts
-├── docs/                        # PROJECT_OVERVIEW.md, RUST_MIGRATION_PLAN.md
-├── examples/                    # Sample before/after images
-└── claude.md                    # Detailed AI context (read this too)
+│   ├── logging.py               # Logging configuration
+│   └── __main__.py              # Application entry
+├── tests/
+│   ├── fixtures/                # Test images
+│   ├── unit/                    # Unit tests
+│   ├── integration/             # Integration tests
+│   └── utils/                   # Test helpers
+├── docs/                        # PRODUCTION_PLAN.md, PROJECT_OVERVIEW.md
+├── packaging/                   # Build configurations
+├── scripts/                     # Utility scripts
+└── examples/                    # Sample before/after images
 ```
 
 ## WHERE TO LOOK
@@ -61,9 +68,10 @@ from dive_color_corrector.core.color.filter import apply_filter
 - **Exports**: Use `__all__` in `__init__.py`
 
 ### Error Handling
-- Raise `ValueError` for invalid inputs
+- Use custom exceptions from `core/exceptions.py`
 - Context managers for file/video handles
 - Always call `.release()` on VideoCapture/VideoWriter
+- Use `logger` from `logging.py` instead of `print()`
 
 ## ANTI-PATTERNS (THIS PROJECT)
 
@@ -74,6 +82,7 @@ from dive_color_corrector.core.color.filter import apply_filter
 | Instantiate `DeepSESR()` per frame | Model reloads each time; 100x slower |
 | Forget `.release()` on video handles | File corruption, handle leaks |
 | Process macOS in CI | TensorFlow-CPU incompatible |
+| Use `print()` for status updates | Use `logging` module instead |
 
 ## ALGORITHM QUICK REFERENCE
 
@@ -100,34 +109,37 @@ from dive_color_corrector.core.color.filter import apply_filter
 ## COMMANDS
 
 ```bash
-# Install
-uv pip install -e ".[gui]"
+# Setup development environment
+uv venv
+source .venv/bin/activate
+uv pip install -e ".[dev,gui]"
+uv run pre-commit install
 
 # Run GUI
-python -m dive_color_corrector
+uv run python -m dive_color_corrector
 
 # Run CLI
-python -m dive_color_corrector image input.jpg output.jpg
-python -m dive_color_corrector video input.mp4 output.mp4 --use-deep
+uv run python -m dive_color_corrector image input.jpg output.jpg
+uv run python -m dive_color_corrector video input.mp4 output.mp4 --use-deep
 
 # Test
-pytest tests/
+uv run pytest tests/
+uv run pytest tests/unit --cov=src/dive_color_corrector
 
-# Build executable
-uv pip install pyinstaller pillow
-pyinstaller --name "Dive Color Corrector" --windowed --onefile \
-  --add-data "src/dive_color_corrector/gui/assets:dive_color_corrector/gui/assets" \
-  src/dive_color_corrector/__main__.py
+# Linting
+uv run ruff check src tests
+uv run mypy src
 ```
 
 ## NOTES
 
-- **Loose root files**: `inspect_model.py`, `setup.py` (py2app), `Dive Color Corrector.spec.template` should be in `tools/` or `packaging/`
+- **Packaging**: PyInstaller configurations in `packaging/pyinstaller/`
 - **Rust migration**: Planned rewrite documented in `docs/RUST_MIGRATION_PLAN.md`
-- **Model location**: Binary `.keras` file in `src/dive_color_corrector/models/` - consider moving to package data
-- **tests/samples/**: Mixed data files and helper scripts - helper scripts should be in `tests/utils/`
+- **Model location**: Binary `.keras` file in `src/dive_color_corrector/models/`
+- **Logging**: Configured via `src/dive_color_corrector/logging.py`
 
 ## SEE ALSO
 
-- `claude.md` - Extended context for AI assistants (architecture patterns, common tasks)
-- `docs/PROJECT_OVERVIEW.md` - Detailed algorithm explanation and API examples
+- `claude.md` - Extended context for AI assistants
+- `docs/PROJECT_OVERVIEW.md` - Detailed algorithm explanation
+- `docs/PRODUCTION_PLAN.md` - Current status and roadmap
