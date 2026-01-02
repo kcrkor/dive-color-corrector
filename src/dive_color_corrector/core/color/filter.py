@@ -1,7 +1,10 @@
 """Color correction filter operations."""
 
+from typing import Any
+
 import cv2
 import numpy as np
+from numpy.typing import NDArray
 
 from dive_color_corrector.core.color.constants import (
     BLUE_MAGIC_VALUE,
@@ -12,7 +15,7 @@ from dive_color_corrector.core.color.constants import (
 from dive_color_corrector.core.color.hue import hue_shift_red
 
 
-def normalizing_interval(array: np.ndarray | list[float]) -> tuple[float, float]:
+def normalizing_interval(array: NDArray[Any] | list[float]) -> tuple[float, float]:
     """Find the largest interval between consecutive values.
 
     Args:
@@ -35,7 +38,7 @@ def normalizing_interval(array: np.ndarray | list[float]) -> tuple[float, float]
     return (low, high)
 
 
-def apply_filter(mat: np.ndarray, filt: np.ndarray | list[float]) -> np.ndarray:
+def apply_filter(mat: NDArray[Any], filt: NDArray[Any] | list[float]) -> NDArray[Any]:
     """Apply color correction filter to matrix.
 
     Args:
@@ -56,7 +59,7 @@ def apply_filter(mat: np.ndarray, filt: np.ndarray | list[float]) -> np.ndarray:
     return np.clip(filtered_mat, 0, 255).astype(np.uint8)
 
 
-def get_filter_matrix(mat: np.ndarray) -> np.ndarray:
+def get_filter_matrix(mat: NDArray[Any]) -> NDArray[Any]:
     """Calculate color correction filter matrix.
 
     Args:
@@ -151,8 +154,8 @@ def get_filter_matrix(mat: np.ndarray) -> np.ndarray:
 
 
 def precompute_filter_matrices(
-    frame_count: int, filter_indices: np.ndarray | list[int], filter_matrices: np.ndarray
-) -> np.ndarray:
+    frame_count: int, filter_indices: NDArray[Any] | list[int], filter_matrices: NDArray[Any]
+) -> NDArray[Any]:
     """Precompute interpolated filter matrices for all frames.
 
     Args:

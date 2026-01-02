@@ -7,9 +7,11 @@ For high-level image/video processing, import directly from:
 """
 
 import math
+from typing import Any
 
 import cv2
 import numpy as np
+from numpy.typing import NDArray
 
 THRESHOLD_RATIO = 2000
 MIN_AVG_RED = 60
@@ -18,7 +20,7 @@ BLUE_MAGIC_VALUE = 1.2
 SAMPLE_SECONDS = 2  # Extracts color correction from every N seconds
 
 
-def hue_shift_red(mat: np.ndarray, h: float) -> np.ndarray:
+def hue_shift_red(mat: NDArray[Any], h: float) -> NDArray[Any]:
     """Apply hue shift to red channel."""
     u = math.cos(h * math.pi / 180)
     w = math.sin(h * math.pi / 180)
@@ -30,7 +32,7 @@ def hue_shift_red(mat: np.ndarray, h: float) -> np.ndarray:
     return np.dstack([r, g, b])
 
 
-def normalizing_interval(array: np.ndarray) -> tuple[float, float]:
+def normalizing_interval(array: NDArray[Any]) -> tuple[float, float]:
     """Find the largest interval between consecutive values."""
     high = 255
     low = 0
@@ -46,7 +48,7 @@ def normalizing_interval(array: np.ndarray) -> tuple[float, float]:
     return (low, high)
 
 
-def apply_filter(mat: np.ndarray, filt: np.ndarray) -> np.ndarray:
+def apply_filter(mat: NDArray[Any], filt: NDArray[Any]) -> NDArray[Any]:
     """Apply color correction filter to matrix."""
     r = mat[..., 0]
     g = mat[..., 1]
@@ -62,7 +64,7 @@ def apply_filter(mat: np.ndarray, filt: np.ndarray) -> np.ndarray:
     return filtered_mat
 
 
-def get_filter_matrix(mat: np.ndarray) -> np.ndarray:
+def get_filter_matrix(mat: NDArray[Any]) -> NDArray[Any]:
     """Calculate color correction filter matrix."""
     mat = cv2.resize(mat, (256, 256))
 
@@ -149,7 +151,7 @@ def get_filter_matrix(mat: np.ndarray) -> np.ndarray:
     )
 
 
-def correct(mat: np.ndarray) -> np.ndarray:
+def correct(mat: NDArray[Any]) -> NDArray[Any]:
     """Apply color correction to matrix."""
     original_mat = mat.copy()
     filter_matrix = get_filter_matrix(mat)

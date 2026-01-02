@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Any, cast
 
 import cv2
 import numpy as np
+from numpy.typing import NDArray
 
 from dive_color_corrector.core.exceptions import ModelLoadError
 
@@ -74,21 +75,21 @@ class DeepSESR:
 
         self._initialized = True
 
-    def preprocess_image(self, img: np.ndarray) -> np.ndarray:
+    def preprocess_image(self, img: NDArray[Any]) -> NDArray[Any]:
         """Preprocess image for model input."""
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         img = cv2.resize(img, (self.input_size[1], self.input_size[0]))
         img = (img.astype(np.float32) / 127.5) - 1.0
         return np.expand_dims(img, axis=0)
 
-    def postprocess_image(self, img: np.ndarray) -> np.ndarray:
+    def postprocess_image(self, img: NDArray[Any]) -> NDArray[Any]:
         """Postprocess model output to BGR image."""
         img = np.squeeze(img, axis=0)
         img = (img + 1.0) * 0.5
         img = np.clip(img * 255, 0, 255).astype(np.uint8)
         return cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
 
-    def enhance(self, img: np.ndarray, use_superres: bool = True) -> np.ndarray:
+    def enhance(self, img: NDArray[Any], use_superres: bool = True) -> NDArray[Any]:
         """Enhance an underwater image using Deep SESR.
 
         Args:
@@ -104,10 +105,10 @@ class DeepSESR:
 
         enhanced = outputs[1] if use_superres and len(outputs) >= 2 else outputs[0]
 
-        enhanced = self.postprocess_image(cast(np.ndarray, enhanced))
+        enhanced = self.postprocess_image(cast(NDArray[Any], enhanced))
 
         target_size = self.output_size if use_superres else self.input_size
         if original_size != target_size:
             enhanced = cv2.resize(enhanced, (original_size[1], original_size[0]))
 
-        return cast(np.ndarray, enhanced)
+        return cast(NDArray[Any], enhanced)

@@ -27,6 +27,7 @@ def _add_sesr_arg(parser: argparse.ArgumentParser) -> None:
 def parse_args(args: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Correct colors in underwater images and videos")
     parser.add_argument("--verbose", "-v", action="store_true", help="Enable verbose logging")
+    parser.add_argument("--quiet", "-q", action="store_true", help="Suppress non-error output")
     subparsers = parser.add_subparsers(dest="mode", help="Processing mode")
 
     image_parser = subparsers.add_parser("image", help="Process a single image")
@@ -48,6 +49,9 @@ def parse_args(args: Sequence[str] | None = None) -> argparse.Namespace:
     )
     batch_parser.add_argument(
         "--videos-only", action="store_true", help="Process only videos (skip images)"
+    )
+    batch_parser.add_argument(
+        "--dry-run", action="store_true", help="Show what would be processed without processing"
     )
 
     return parser.parse_args(args)
@@ -86,10 +90,17 @@ def process_single_video(input_path: Path, output_path: Path, use_deep: bool, lo
 
 
 def process_batch(
-    input_dir: Path, output_dir: Path, use_deep: bool, images_only: bool, videos_only: bool
+    input_dir: Path,
+    output_dir: Path,
+    use_deep: bool,
+    images_only: bool,
+    videos_only: bool,
+    dry_run: bool,
 ) -> None:
     logger = get_logger()
-    output_dir.mkdir(parents=True, exist_ok=True)
+
+    if not dry_run:
+        output_dir.mkdir(parents=True, exist_ok=True)
 
     files = sorted(input_dir.iterdir())
     image_files = [f for f in files if f.suffix.lower() in IMAGE_EXTENSIONS]
@@ -108,18 +119,24 @@ def process_batch(
     for i, img in enumerate(image_files, 1):
         out_path = output_dir / f"{img.stem}_corrected{img.suffix.lower()}"
         logger.info(f"[{i}/{total}] {img.name}")
-        if process_single_image(img, out_path, use_deep, logger):
-            success += 1
+        if not dry_run:
+            if process_single_image(img, out_path, use_deep, logger):
+                success += 1
+            else:
+                failed += 1
         else:
-            failed += 1
+            success += 1
 
     for i, vid in enumerate(video_files, len(image_files) + 1):
         out_path = output_dir / f"{vid.stem}_corrected.mp4"
         logger.info(f"[{i}/{total}] {vid.name}")
-        if process_single_video(vid, out_path, use_deep, logger):
-            success += 1
+        if not dry_run:
+            if process_single_video(vid, out_path, use_deep, logger):
+                success += 1
+            else:
+                failed += 1
         else:
-            failed += 1
+            success += 1
 
     logger.info(f"Complete: {success} succeeded, {failed} failed")
 
@@ -127,7 +144,17 @@ def process_batch(
 def main(argv: Sequence[str] | None = None) -> None:
     args = parse_args(argv)
 
-    log_level = "DEBUG" if args.verbose else "INFO"
+    if args.verbose and args.quiet:
+        print("Error: Cannot specify both --verbose and --quiet")
+        sys.exit(1)
+
+    if args.verbose:
+        log_level = "DEBUG"
+    elif args.quiet:
+        log_level = "ERROR"
+    else:
+        log_level = "INFO"
+
     setup_logging(level=log_level)
     logger = get_logger()
 
@@ -147,7 +174,14 @@ def main(argv: Sequence[str] | None = None) -> None:
             logger.error(f"Input directory does not exist: {input_dir}")
             sys.exit(1)
 
-        process_batch(input_dir, output_dir, args.sesr, args.images_only, args.videos_only)
+        process_batch(
+            input_dir,
+            output_dir,
+            args.sesr,
+            args.images_only,
+            args.videos_only,
+            getattr(args, "dry_run", False),
+        )
         return
 
     input_path = Path(args.input)
@@ -157,7 +191,8 @@ def main(argv: Sequence[str] | None = None) -> None:
         logger.error(f"Input file {input_path} does not exist")
         sys.exit(1)
 
-    output_path.parent.mkdir(parents=True, exist_ok=True)
+    if not getattr(args, "dry_run", False):
+        output_path.parent.mkdir(parents=True, exist_ok=True)
 
     if args.mode == "image":
         if not process_single_image(input_path, output_path, args.sesr, logger):

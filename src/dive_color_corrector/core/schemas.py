@@ -1,8 +1,9 @@
 """Pydantic models for data validation."""
 
 from pathlib import Path
+from typing import Any
 
-import numpy as np
+from numpy.typing import NDArray
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
@@ -18,7 +19,7 @@ class VideoData(BaseModel):
     filter_indices: list[int] = Field(
         default_factory=list, description="Frame indices for sampled filters"
     )
-    filter_matrices: np.ndarray = Field(..., description="Filter matrices array")
+    filter_matrices: NDArray[Any] = Field(..., description="Filter matrices array")
 
     @field_validator("input_video_path")
     @classmethod
@@ -29,7 +30,7 @@ class VideoData(BaseModel):
 
     @field_validator("filter_matrices")
     @classmethod
-    def validate_filter_matrices(cls, v: np.ndarray) -> np.ndarray:
+    def validate_filter_matrices(cls, v: NDArray[Any]) -> NDArray[Any]:
         if v.ndim == 2 and v.shape[1] != 20 and v.size > 0:
             raise ValueError(f"Filter matrices must have shape (n, 20), got {v.shape}")
         return v

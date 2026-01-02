@@ -1,11 +1,13 @@
 """Hue shift operations."""
 
 import math
+from typing import Any
 
 import numpy as np
+from numpy.typing import NDArray
 
 
-def hue_shift_red(mat: np.ndarray, h: float) -> np.ndarray:
+def hue_shift_red(mat: NDArray[Any], h: float) -> NDArray[Any]:
     """Apply hue shift to red channel.
 
     Args:

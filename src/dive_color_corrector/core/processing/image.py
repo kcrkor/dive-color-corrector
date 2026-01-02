@@ -5,6 +5,7 @@ from typing import Any
 
 import cv2
 import numpy as np
+from numpy.typing import NDArray
 from PIL import Image, UnidentifiedImageError
 
 from dive_color_corrector.core.correction import correct as correct_simple
@@ -19,7 +20,7 @@ PNG_EXTENSIONS = {".png"}
 DEFAULT_JPEG_QUALITY = 95
 
 
-def correct(mat: np.ndarray, use_deep: bool = False) -> np.ndarray:
+def correct(mat: NDArray[Any], use_deep: bool = False) -> NDArray[Any]:
     if use_deep:
         if not SESR_AVAILABLE:
             raise SESRNotAvailableError()
