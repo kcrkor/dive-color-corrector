@@ -35,6 +35,10 @@ environments = [
     "sys_platform == 'win32' and platform_machine == 'AMD64'",
     "sys_platform == 'darwin'",
 ]
+override-dependencies = [
+    # tensorflow-io-gcs-filesystem has no Windows wheels - exclude on win32
+    "tensorflow-io-gcs-filesystem; sys_platform != 'win32'",
+]
 
 [project.optional-dependencies]
 gui = ["PySimpleGUI>=4.60.0"]

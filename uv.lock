@@ -20,6 +20,9 @@ supported-markers = [
     "sys_platform == 'darwin'",
 ]
 
+[manifest]
+overrides = [{ name = "tensorflow-io-gcs-filesystem", marker = "sys_platform != 'win32'" }]
+
 [[package]]
 name = "absl-py"
 version = "2.2.0"
@@ -1487,7 +1490,6 @@ dependencies = [
     { name = "six", marker = "platform_machine == 'AMD64' and sys_platform == 'win32'" },
     { name = "tensorboard", version = "2.18.0", source = { registry = "https://pypi.org/simple" }, marker = "platform_machine == 'AMD64' and sys_platform == 'win32'" },
     { name = "tensorflow-intel", marker = "platform_machine == 'AMD64' and sys_platform == 'win32'" },
-    { name = "tensorflow-io-gcs-filesystem", marker = "python_full_version < '3.12' and platform_machine == 'AMD64' and sys_platform == 'win32'" },
     { name = "termcolor", marker = "platform_machine == 'AMD64' and sys_platform == 'win32'" },
     { name = "typing-extensions", marker = "platform_machine == 'AMD64' and sys_platform == 'win32'" },
     { name = "wrapt", marker = "platform_machine == 'AMD64' and sys_platform == 'win32'" },
@@ -1531,7 +1533,7 @@ dependencies = [
     { name = "setuptools", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "six", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "tensorboard", version = "2.19.0", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
-    { name = "tensorflow-io-gcs-filesystem", marker = "(python_full_version < '3.12' and sys_platform == 'darwin') or (python_full_version < '3.12' and sys_platform == 'linux')" },
+    { name = "tensorflow-io-gcs-filesystem", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "termcolor", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "typing-extensions", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "wrapt", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
@@ -1564,7 +1566,6 @@ dependencies = [
     { name = "setuptools", marker = "platform_machine == 'AMD64' and sys_platform == 'win32'" },
     { name = "six", marker = "platform_machine == 'AMD64' and sys_platform == 'win32'" },
     { name = "tensorboard", version = "2.18.0", source = { registry = "https://pypi.org/simple" }, marker = "platform_machine == 'AMD64' and sys_platform == 'win32'" },
-    { name = "tensorflow-io-gcs-filesystem", marker = "python_full_version < '3.12' and platform_machine == 'AMD64' and sys_platform == 'win32'" },
     { name = "termcolor", marker = "platform_machine == 'AMD64' and sys_platform == 'win32'" },
     { name = "typing-extensions", marker = "platform_machine == 'AMD64' and sys_platform == 'win32'" },
     { name = "wrapt", marker = "platform_machine == 'AMD64' and sys_platform == 'win32'" },
