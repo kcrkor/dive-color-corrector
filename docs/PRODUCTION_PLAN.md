@@ -1,7 +1,8 @@
 # Dive Color Corrector - Production Readiness Plan
 
 **Created:** 2026-01-01
-**Status:** Planning
+**Updated:** 2026-01-02
+**Status:** In Progress (Phase 3 Complete)
 **Author:** AI Assistant
 
 ## Executive Summary
@@ -799,6 +800,7 @@ jobs:
 - [ ] Add usage examples with screenshots
 - [x] Create `.github/workflows/ci.yml`
 - [x] Create `.github/workflows/release.yml`
+- [x] Fix workflow_call triggers for reusable workflows
 - [ ] Set up Codecov integration
 - [ ] Add integration tests
 - [ ] Achieve 80%+ test coverage
@@ -810,22 +812,25 @@ jobs:
 - [ ] Performance optimization for DeepSESR
 - [ ] GUI improvements (optional)
 - [x] CLI improvements (--verbose flag added)
+- [x] Tag v1.2.1 release
 - [ ] Final testing on Windows + Linux
 - [ ] Tag v1.3.0 release
-- [ ] Publish to PyPI (optional)
+- [ ] Publish to PyPI (configure trusted publishing)
 
 ---
 
 ## Success Criteria
 
-| Metric | Current | Target |
-|--------|---------|--------|
-| Test coverage | 39% | 80%+ |
-| Linting errors | 0 | 0 |
-| Type errors | 0 | 0 |
-| Documentation | Basic README | Full docs |
-| CI/CD | Build only | Lint + Test + Build + Release |
-| Root files | 15+ loose | Organized |
+| Metric | Original | Current | Target |
+|--------|----------|---------|--------|
+| Test coverage | 39% | 56% | 80%+ |
+| Linting errors | 0 | 0 | 0 |
+| Type errors | 0 | 0 | 0 |
+| Documentation | Basic README | Enhanced | Full docs |
+| CI/CD | Build only | Lint + Test + Build + Release | Complete |
+| Root files | 15+ loose | Organized | Organized |
+
+> **Note:** See `IMPROVEMENT_PLAN.md` for the current actionable roadmap.
 
 ---
 
