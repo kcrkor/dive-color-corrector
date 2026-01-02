@@ -3,6 +3,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from dive_color_corrector.core.exceptions import ModelLoadError
 from dive_color_corrector.core.models.sesr import DeepSESR
 
 
@@ -16,7 +17,7 @@ def test_model_initialization() -> None:
     assert model.input_size == (240, 320)
     assert model.session is not None
 
-    with pytest.raises(FileNotFoundError):
+    with pytest.raises(ModelLoadError):
         DeepSESR("non_existent_model.onnx")
 
 

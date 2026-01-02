@@ -5,9 +5,10 @@ from typing import Any
 
 import cv2
 import numpy as np
-from PIL import Image
+from PIL import Image, UnidentifiedImageError
 
 from dive_color_corrector.core.correction import correct as correct_simple
+from dive_color_corrector.core.exceptions import ImageProcessingError, InvalidInputError
 from dive_color_corrector.core.models.sesr import SESR_AVAILABLE, DeepSESR, SESRNotAvailableError
 from dive_color_corrector.core.utils.constants import PREVIEW_HEIGHT, PREVIEW_WIDTH
 
@@ -47,21 +48,31 @@ def _get_save_kwargs(image: Image.Image, output_path: str) -> dict[str, Any]:
 
 
 def correct_image(input_path: str, output_path: str | None, use_deep: bool = False) -> bytes:
-    with Image.open(input_path) as image:
-        original_info = image.info.copy()
-        if image.mode != "RGB":
-            image = image.convert("RGB")
-        image.info = original_info
-        mat = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
+    input_file = Path(input_path)
+    if not input_file.exists():
+        raise InvalidInputError(f"Input file not found: {input_path}")
+
+    try:
+        with Image.open(input_path) as image:
+            original_info = image.info.copy()
+            if image.mode != "RGB":
+                image = image.convert("RGB")
+            image.info = original_info
+            mat = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
+    except UnidentifiedImageError as e:
+        raise InvalidInputError(f"Unsupported image format: {input_path}") from e
 
     rgb_mat = cv2.cvtColor(mat, cv2.COLOR_BGR2RGB)
     corrected_mat = correct(rgb_mat, use_deep=use_deep)
 
     if output_path:
-        output_image = Image.fromarray(cv2.cvtColor(corrected_mat, cv2.COLOR_BGR2RGB))
-        with Image.open(input_path) as original:
-            save_kwargs = _get_save_kwargs(original, output_path)
-        output_image.save(output_path, **save_kwargs)
+        try:
+            output_image = Image.fromarray(cv2.cvtColor(corrected_mat, cv2.COLOR_BGR2RGB))
+            with Image.open(input_path) as original:
+                save_kwargs = _get_save_kwargs(original, output_path)
+            output_image.save(output_path, **save_kwargs)
+        except OSError as e:
+            raise ImageProcessingError(f"Failed to save image: {output_path}", output_path) from e
 
     preview = mat.copy()
     width = preview.shape[1] // 2

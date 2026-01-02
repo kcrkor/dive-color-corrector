@@ -12,6 +12,7 @@ from dive_color_corrector.core.color.filter import (
     get_filter_matrix,
     precompute_filter_matrices,
 )
+from dive_color_corrector.core.exceptions import VideoProcessingError
 from dive_color_corrector.core.processing.image import correct
 from dive_color_corrector.core.schemas import VideoData
 from dive_color_corrector.core.utils.constants import VIDEO_CODEC
@@ -23,7 +24,7 @@ logger = get_logger()
 def analyze_video(video_path: str, output_path: str) -> Generator[int | VideoData, None, None]:
     cap = cv2.VideoCapture(video_path)
     if not cap.isOpened():
-        raise ValueError(f"Could not open video file: {video_path}")
+        raise VideoProcessingError(f"Could not open video file: {video_path}", video_path)
 
     # Get video properties
     fps = math.ceil(cap.get(cv2.CAP_PROP_FPS))
@@ -83,7 +84,10 @@ def process_video(
 ) -> Generator[tuple[float, bytes | None], None, None]:
     cap = cv2.VideoCapture(video_data.input_video_path)
     if not cap.isOpened():
-        raise ValueError(f"Could not open video file: {video_data.input_video_path}")
+        raise VideoProcessingError(
+            f"Could not open video file: {video_data.input_video_path}",
+            video_data.input_video_path,
+        )
 
     frame_width = video_data.width
     frame_height = video_data.height

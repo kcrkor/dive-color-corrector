@@ -8,6 +8,8 @@ from typing import TYPE_CHECKING, cast
 import cv2
 import numpy as np
 
+from dive_color_corrector.core.exceptions import ModelLoadError
+
 if TYPE_CHECKING:
     import onnxruntime
 
@@ -46,7 +48,7 @@ class DeepSESR:
             model_path = Path(model_path)
 
         if not model_path.exists():
-            raise FileNotFoundError(f"Model file not found at {model_path}")
+            raise ModelLoadError(f"Model file not found at {model_path}", model_path)
 
         self.session: onnxruntime.InferenceSession = _ort.InferenceSession(
             str(model_path), providers=["CPUExecutionProvider"]
