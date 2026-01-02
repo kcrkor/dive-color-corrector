@@ -1,5 +1,10 @@
 # Dive Color Corrector
 
+[![PyPI version](https://badge.fury.io/py/dive-color-corrector.svg)](https://badge.fury.io/py/dive-color-corrector)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![Build Status](https://github.com/kcrkor/dive-color-corrector/actions/workflows/ci.yml/badge.svg)](https://github.com/kcrkor/dive-color-corrector/actions/workflows/ci.yml)
+
 Restore natural colors in underwater images and videos. Corrects the blue/green color cast caused by water absorbing red light.
 
 ## Features

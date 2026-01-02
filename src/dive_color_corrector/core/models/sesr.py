@@ -11,7 +11,7 @@ import numpy as np
 from dive_color_corrector.core.exceptions import ModelLoadError
 
 if TYPE_CHECKING:
-    import onnxruntime
+    pass
 
 try:
     import onnxruntime as _ort
@@ -37,7 +37,17 @@ class SESRNotAvailableError(Exception):
 class DeepSESR:
     """Deep SESR model for underwater image enhancement using ONNX Runtime."""
 
-    def __init__(self, model_path: str | Path | None = None):
+    _instance = None
+    _session = None
+    _input_name = None
+    _model_path = None
+
+    def __new__(cls, model_path: str | Path | None = None) -> DeepSESR:
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+        return cls._instance
+
+    def __init__(self, model_path: str | Path | None = None) -> None:
         if not SESR_AVAILABLE:
             raise SESRNotAvailableError()
 
@@ -50,12 +60,19 @@ class DeepSESR:
         if not model_path.exists():
             raise ModelLoadError(f"Model file not found at {model_path}", model_path)
 
-        self.session: onnxruntime.InferenceSession = _ort.InferenceSession(
-            str(model_path), providers=["CPUExecutionProvider"]
-        )
+        if hasattr(self, "_initialized") and DeepSESR._model_path == str(model_path):
+            return
+
+        self.session = _ort.InferenceSession(str(model_path), providers=["CPUExecutionProvider"])
         self.input_name = self.session.get_inputs()[0].name
         self.input_size = LR_SIZE
         self.output_size = HR_SIZE
+
+        DeepSESR._session = self.session
+        DeepSESR._input_name = self.input_name
+        DeepSESR._model_path = str(model_path)
+
+        self._initialized = True
 
     def preprocess_image(self, img: np.ndarray) -> np.ndarray:
         """Preprocess image for model input."""
