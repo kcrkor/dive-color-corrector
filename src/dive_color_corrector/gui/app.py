@@ -149,6 +149,7 @@ def create_window() -> sg.Window:
         size=WINDOW_SIZE,
         finalize=True,
         enable_close_attempted_event=True,
+        enable_drag_and_drop=True,
     )
 
 
@@ -234,6 +235,15 @@ def run_gui() -> None:
             new_files = get_files(values["-FILES_INPUT-"])
             if new_files:
                 selected_files = list(dict.fromkeys(selected_files + new_files))
+                display_names = [Path(f).name for f in selected_files]
+                window["-FILE_LIST-"].update(display_names)
+                window["-PROCESS-"].update(disabled=False)
+                window["-STATUS-"].update(f"{len(selected_files)} file(s) selected")
+
+        if event == sg.DND_FILES:
+            dropped_files = get_files(",".join(values[event]))
+            if dropped_files:
+                selected_files = list(dict.fromkeys(selected_files + dropped_files))
                 display_names = [Path(f).name for f in selected_files]
                 window["-FILE_LIST-"].update(display_names)
                 window["-PROCESS-"].update(disabled=False)
